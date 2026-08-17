@@ -12,35 +12,40 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: sources
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: makinuki/spec
           path: spec
           token: ${{ secrets.MAKINUKI_BOT_TOKEN }}
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: makinuki/pdk-ts
           path: pdk-ts
           token: ${{ secrets.MAKINUKI_BOT_TOKEN }}
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/setup@v1
         with:
           version: 11.22.0
+          runtime: node@24
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: sources/pnpm-lock.yaml
+      - name: install pdk deps
+        working-directory: pdk-ts
+        run: pnpm install --frozen-lockfile
 
-      - name: install
+      - name: install workspace deps
         working-directory: sources
         run: pnpm install --frozen-lockfile
+
+      - name: install wasm toolchain (extism-js, binaryen)
+        run: |
+          curl -fsSL -o install-extism.sh https://raw.githubusercontent.com/extism/js-pdk/main/install.sh
+          bash install-extism.sh v1.6.0
+          extism-js --version
 
       - name: build plugins
         working-directory: sources
@@ -53,13 +58,6 @@ jobs:
       - name: generate registry index
         working-directory: sources
         run: pnpm generate-index
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: registry
-          path: |
-            sources/dist/index.json
-            sources/dist/wasm/
 
       - name: deploy registry
         env:
