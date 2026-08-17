@@ -12,7 +12,6 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const distDir = join(root, "dist");
 const specDir = join(dirname(require.resolve("@makinuki/spec/package.json")), "schemas");
 
-const STATUSES = ["Ongoing", "Completed", "Hiatus", "Cancelled", "Unknown"] as const;
 const SCRAMBLE_LAYOUTS = ["slice", "shift", "custom"] as const;
 
 const { values, positionals } = parseArgs({
@@ -205,42 +204,19 @@ async function run(): Promise<boolean> {
       coverUrl: string;
       chapters: Array<Record<string, unknown>>;
     };
+    const v = validate("details.schema.json");
+    if (!v(details)) {
+      fail("get_details", schemaErrors(v));
+      return false;
+    }
     if (details.id !== detailsId) {
       fail("get_details", `id mismatch: requested ${detailsId}, got ${details.id}`);
-      return false;
-    }
-    if (typeof details.title !== "string" || details.title === "") {
-      fail("get_details", "title missing");
-      return false;
-    }
-    if (!STATUSES.includes(details.status as (typeof STATUSES)[number])) {
-      fail("get_details", `status ${JSON.stringify(details.status)} not in ${STATUSES.join("|")}`);
-      return false;
-    }
-    if (typeof details.coverUrl !== "string" || details.coverUrl === "") {
-      fail("get_details", "coverUrl missing");
-      return false;
-    }
-    if (!Array.isArray(details.chapters)) {
-      fail("get_details", "chapters missing");
-      return false;
-    }
-    const v = validate("chapter.schema.json");
-    const badChapters = details.chapters.filter((c) => !v(c));
-    if (badChapters.length > 0) {
-      fail("get_details", `${badChapters.length} chapters invalid: ${schemaErrors(v)}`);
       return false;
     }
     const dup = requireUnique(details.chapters.map((c) => String(c.id ?? "")), "chapters");
     if (dup) {
       fail("get_details", dup);
       return false;
-    }
-    for (const c of details.chapters) {
-      if (c.number !== null && typeof c.number !== "number") {
-        fail("get_details", `chapter ${String(c.id)} number must be number or null`);
-        return false;
-      }
     }
     chapters = details.chapters;
     pass("get_details", `${detailsId} chapters=${chapters.length} status=${details.status}`);
@@ -266,10 +242,9 @@ async function run(): Promise<boolean> {
       isScrambled: boolean;
       metadata?: { layout: string; rows: number; cols: number; tileW: number; tileH: number; order: number[] };
     }>;
-    const v = validate("page.schema.json");
-    const badPages = pages.filter((p) => !v(p));
-    if (badPages.length > 0) {
-      fail("get_pages", `${badPages.length} pages invalid: ${schemaErrors(v)}`);
+    const v = validate("pages.schema.json");
+    if (!v(pages)) {
+      fail("get_pages", schemaErrors(v));
       return false;
     }
     for (let i = 0; i < pages.length; i++) {
