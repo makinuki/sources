@@ -1,0 +1,10 @@
+{
+  "name": "@makinuki/source-mangadex",
+  "version": "0.1.0",
+  "description": "MangaDex source plugin (REST API based)",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@makinuki/pdk": "link:../../../pdk-ts"
+  }
+}

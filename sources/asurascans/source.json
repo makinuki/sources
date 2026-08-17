@@ -1,0 +1,10 @@
+{
+  "id": "asurascans",
+  "name": "Asura Scans",
+  "version": "0.1.0",
+  "abiVersion": 1,
+  "lang": "en",
+  "baseUrl": "https://asurascans.com",
+  "iconUrl": "https://asurascans.com/favicon.ico",
+  "nsfw": false
+}

@@ -1,0 +1,10 @@
+{
+  "name": "@makinuki/source-asurascans",
+  "version": "0.1.0",
+  "description": "Asura Scans source plugin (HTML scraping based)",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@makinuki/pdk": "link:../../../pdk-ts"
+  }
+}
