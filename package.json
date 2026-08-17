@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.ts",
+    "generate-index": "node --experimental-wasm-jspi scripts/generate-index.ts",
     "test": "node --experimental-wasm-jspi scripts/run-tests.ts",
     "typecheck": "tsc --noEmit"
   },

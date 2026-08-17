@@ -1,0 +1,97 @@
+name: publish-registry
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: sources
+
+      - uses: actions/checkout@v4
+        with:
+          repository: makinuki/spec
+          path: spec
+          token: ${{ secrets.MAKINUKI_BOT_TOKEN }}
+
+      - uses: actions/checkout@v4
+        with:
+          repository: makinuki/pdk-ts
+          path: pdk-ts
+          token: ${{ secrets.MAKINUKI_BOT_TOKEN }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: sources/pnpm-lock.yaml
+
+      - name: install
+        working-directory: sources
+        run: pnpm install --frozen-lockfile
+
+      - name: build plugins
+        working-directory: sources
+        run: pnpm build
+
+      - name: conformance tests
+        working-directory: sources
+        run: pnpm test
+
+      - name: generate registry index
+        working-directory: sources
+        run: pnpm generate-index
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: registry
+          path: |
+            sources/dist/index.json
+            sources/dist/wasm/
+
+      - name: deploy registry
+        env:
+          TOKEN: ${{ secrets.MAKINUKI_BOT_TOKEN }}
+        run: |
+          git config --global user.name "Byururu-sama"
+          git config --global user.email "97214346+Byururu-sama@users.noreply.github.com"
+          git clone https://github.com/makinuki/makinuki.github.io.git registry
+          cd registry
+          git remote set-url origin "https://x-access-token:${TOKEN}@github.com/makinuki/makinuki.github.io.git"
+          rm -rf index.json wasm
+          cp ../sources/dist/index.json index.json
+          cp -r ../sources/dist/wasm wasm
+          git add -A
+          if git diff --cached --quiet; then
+            echo "registry unchanged, nothing to push"
+          else
+            git commit -m "chore(registry): publish sources build"
+            git push origin main
+          fi
+
+      - name: verify live registry
+        run: |
+          curl -fsSL https://makinuki.github.io/index.json -o index.live.json
+          node -e "
+            const { execSync } = require('node:child_process');
+            const a = require('./index.live.json');
+            if (a.version !== 1 || !Array.isArray(a.sources) || a.sources.length === 0) { console.error('bad live index'); process.exit(1); }
+            console.log('live index ok, sources=' + a.sources.length);
+            for (const s of a.sources) {
+              const actual = execSync('curl -fsSL ' + s.wasmUrl + ' | sha256sum').toString().trim().split(/\s+/)[0];
+              if (actual !== s.sha256) { console.error('sha mismatch: ' + s.id); process.exit(1); }
+              console.log('sha ok: ' + s.id);
+            }
+          "

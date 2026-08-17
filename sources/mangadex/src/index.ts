@@ -171,7 +171,7 @@ const metadata: SourceMetadata = {
   name: "MangaDex",
   version: "0.1.0",
   abiVersion: 1,
-  lang: "en",
+  lang: "multi",
   baseUrl: WEB,
   iconUrl: "https://mangadex.org/favicon.ico",
   nsfw: false,
