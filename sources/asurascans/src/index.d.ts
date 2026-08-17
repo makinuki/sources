@@ -30,6 +30,9 @@ interface MemoryHandle {
 declare module "main" {
   export function get_metadata(): I32;
   export function get_filters(): I32;
+  export function search(): I32;
+  export function get_details(): I32;
+  export function get_pages(): I32;
 }
 
 declare module "extism:host" {
