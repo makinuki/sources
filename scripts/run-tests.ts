@@ -27,17 +27,22 @@ const { values, positionals } = parseArgs({
   },
 });
 
-const source = positionals[0];
-if (!source) {
-  console.error("usage: node scripts/run-tests.ts <source> [--search <q>] [--filters <json>] [--page <n>] [--details <id>] [--pages <id>] [--expect <id>]");
+const targets = positionals.length > 0 ? positionals : readdirSync(distDir).filter((f) => f.endsWith(".wasm")).map((f) => f.slice(0, -5)).sort();
+if (targets.length === 0) {
+  console.error("usage: node scripts/run-tests.ts [source ...] [--search <q>] [--filters <json>] [--page <n>] [--details <id>] [--pages <id>] [--expect <id>]");
+  console.error("(no source: test every plugin in dist/)");
   process.exit(1);
 }
+if (positionals.length === 0) console.log(`targets: ${targets.join(", ")}`);
 
-const wasmPath = join(distDir, `${source}.wasm`);
-if (!existsSync(wasmPath)) {
-  console.error(`FAIL no such plugin: ${wasmPath}`);
-  process.exit(1);
-}
+const opts = values as unknown as {
+  search?: string;
+  filters?: string;
+  page?: string;
+  details?: string;
+  pages?: string;
+  expect?: string;
+};
 
 let fails = 0;
 let passes = 0;
@@ -89,7 +94,14 @@ function requireUnique(ids: Array<string | undefined>, what: string): string | n
   return null;
 }
 
-async function run(): Promise<boolean> {
+async function runSource(source: string): Promise<boolean> {
+  fails = 0;
+  passes = 0;
+  const wasmPath = join(distDir, `${source}.wasm`);
+  if (!existsSync(wasmPath)) {
+    fail("load", `no such plugin: ${wasmPath}`);
+    return false;
+  }
   console.log(`=== ${source} ===`);
   console.log(`schema dir: ${specDir}`);
   console.log(`user-agent: ${UA}`);
@@ -137,14 +149,14 @@ async function run(): Promise<boolean> {
     pass("get_filters", `${filters.length} (${Object.entries(counts).map(([t, n]) => `${t}x${n}`).join(", ")})`);
   }
 
-  const query = values.search ?? "a";
-  const page = Number(values.page ?? "1");
+  const query = opts.search ?? "a";
+  const page = Number(opts.page ?? "1");
   const filtersJson = (() => {
-    if (!values.filters) return {};
+    if (!opts.filters) return {};
     try {
-      return JSON.parse(values.filters) as Record<string, unknown>;
+      return JSON.parse(opts.filters) as Record<string, unknown>;
     } catch {
-      console.error(`FAIL bad --filters JSON: ${values.filters}`);
+      console.error(`FAIL bad --filters JSON: ${opts.filters}`);
       process.exit(1);
     }
   })();
@@ -170,19 +182,19 @@ async function run(): Promise<boolean> {
       fail("search", dup);
       return false;
     }
-    if (values.expect && !items.some((i) => i.id === values.expect)) {
-      fail("search", `--expect ${values.expect} not in ${items.length} results`);
+    if (opts.expect && !items.some((i) => i.id === opts.expect)) {
+      fail("search", `--expect ${opts.expect} not in ${items.length} results`);
       return false;
     }
     searchData = data;
     pass(
       "search",
       `"${query}" page=${data.page} items=${items.length} hasNextPage=${data.hasNextPage}` +
-        (values.expect ? " expect=found" : "")
+        (opts.expect ? " expect=found" : "")
     );
   }
 
-  const detailsId = values.details ?? (searchData.items[0]?.id as string | undefined);
+  const detailsId = opts.details ?? (searchData.items[0]?.id as string | undefined);
   if (!detailsId) {
     fail("get_details", "no id available (search returned no items and no --details given)");
     return false;
@@ -222,7 +234,7 @@ async function run(): Promise<boolean> {
     pass("get_details", `${detailsId} chapters=${chapters.length} status=${details.status}`);
   }
 
-  const pagesId = values.pages ?? (chapters[0]?.id as string | undefined);
+  const pagesId = opts.pages ?? (chapters[0]?.id as string | undefined);
   if (!pagesId) {
     fail("get_pages", "no chapter id available (details has no chapters and no --pages given)");
     return false;
@@ -272,12 +284,21 @@ async function run(): Promise<boolean> {
   return fails === 0;
 }
 
-run().then((ok) => {
-  const total = passes + fails;
-  console.log("==================================================================");
-  console.log(ok ? `RESULT: PASS (${passes}/${total})` : `RESULT: FAIL (${passes}/${total})`);
-  process.exitCode = ok ? 0 : 1;
-}).catch((err) => {
+(async () => {
+  let allOk = true;
+  for (const target of targets) {
+    const ok = await runSource(target);
+    const total = passes + fails;
+    console.log("==================================================================");
+    console.log(ok ? `RESULT: PASS (${passes}/${total})` : `RESULT: FAIL (${passes}/${total})`);
+    if (!ok) allOk = false;
+  }
+  if (targets.length > 1) {
+    console.log("==================================================================");
+    console.log(allOk ? `ALL SOURCES PASS (${targets.length})` : `SOME SOURCES FAILED (${targets.length})`);
+  }
+  process.exitCode = allOk ? 0 : 1;
+})().catch((err) => {
   console.error(err);
   process.exitCode = 1;
 });
