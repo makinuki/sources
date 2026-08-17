@@ -476,6 +476,8 @@ function createChapterItem(data: RecordObject): ChapterItem {
     .filter((name): name is string => typeof name === "string" && name.length > 0);
 
   const item: ChapterItem = { id, number: chapterNumber(attrs) };
+  const language = attrs["translatedLanguage"];
+  if (typeof language === "string" && language.length > 0) item.language = language;
   const title = typeof attrs["title"] === "string" ? unescapeHtml(cleanText(attrs["title"])) : "";
   if (title.length > 0) item.title = title;
   const publishAt = typeof attrs["publishAt"] === "string" ? Date.parse(attrs["publishAt"]) : NaN;
