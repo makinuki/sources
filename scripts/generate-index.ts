@@ -49,7 +49,7 @@ async function main(): Promise<void> {
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     mkdirSync(wasmOutDir, { recursive: true });
     writeFileSync(join(wasmOutDir, `${id}-v${version}.wasm`), bytes);
-    sources.push({
+    const entry: Record<string, unknown> = {
       id,
       name: String(metadata.name),
       version,
@@ -61,7 +61,11 @@ async function main(): Promise<void> {
       wasmUrl: `${REGISTRY_BASE}/wasm/${id}-v${version}.wasm`,
       sha256,
       minRuntimeVersion: MIN_RUNTIME_VERSION,
-    });
+    };
+    if (Array.isArray(metadata.allowedHosts) && metadata.allowedHosts.length > 0) {
+      entry.allowedHosts = metadata.allowedHosts;
+    }
+    sources.push(entry);
     console.log(`indexed ${id} v${version} ${sha256.slice(0, 12)}...`);
   }
 
