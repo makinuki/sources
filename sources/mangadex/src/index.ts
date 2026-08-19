@@ -175,6 +175,7 @@ const metadata: SourceMetadata = {
   baseUrl: WEB,
   iconUrl: "https://mangadex.org/favicon.ico",
   nsfw: false,
+  allowedHosts: ["mangadex.network", "uploads.mangadex.org"],
 };
 
 const SORT_OPTIONS: Array<{ label: string; value: string }> = [
