@@ -16,8 +16,9 @@
     "node": ">=22.18"
   },
   "devDependencies": {
-    "@makinuki/pdk": "link:../pdk-ts",
-    "@makinuki/spec": "link:../spec",
+    "@makinuki/pdk": "^1.0.0",
+    "@makinuki/spec": "^1.1.0",
+    "@extism/extism": "2.0.0-rc13",
     "@types/node": "^24.0.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",

@@ -5,6 +5,6 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@makinuki/pdk": "link:../../../pdk-ts"
+    "@makinuki/pdk": "^1.0.0"
   }
 }

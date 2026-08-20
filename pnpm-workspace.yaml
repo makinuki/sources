@@ -3,3 +3,7 @@ packages:
 
 allowBuilds:
   esbuild: true
+
+minimumReleaseAgeExclude:
+  - '@makinuki/pdk@1.0.0'
+  - '@makinuki/spec@1.1.0'
