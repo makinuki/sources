@@ -2,6 +2,8 @@
   "name": "makinuki-sources",
   "version": "0.1.0",
   "description": "Reference MakiNuki source plugins",
+  "license": "MIT",
+  "author": { "name": "Byururu-sama", "url": "https://github.com/Byururu-sama" },
   "private": true,
   "type": "module",
   "scripts": {
