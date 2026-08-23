@@ -65,10 +65,17 @@ function schemaErrors(validate: ValidateFunction): string {
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 addFormats(ajv);
+// Register every schema before compiling any: payload schemas carry
+// cross-file $refs (details.schema.json points into manga.schema.json),
+// and ajv resolves those only against schemas already registered.
+const schemaFiles = readdirSync(specDir).filter((f) => f.endsWith(".schema.json") && f !== "index.schema.json");
 const validators = new Map<string, ValidateFunction>();
-for (const file of readdirSync(specDir).filter((f) => f.endsWith(".schema.json") && f !== "index.schema.json")) {
+for (const file of schemaFiles) {
   const schema = JSON.parse(readFileSync(join(specDir, file), "utf8")) as object;
-  validators.set(file, ajv.compile(schema));
+  ajv.addSchema(schema);
+}
+for (const file of schemaFiles) {
+  validators.set(file, ajv.getSchema(`https://makinuki.github.io/schemas/${file}`)!);
 }
 const validate = (name: string): ValidateFunction => {
   const v = validators.get(name);
@@ -213,7 +220,7 @@ async function runSource(source: string): Promise<boolean> {
       id: string;
       title: string;
       status: string;
-      coverUrl: string;
+      coverUrl?: string;
       chapters: Array<Record<string, unknown>>;
     };
     const v = validate("details.schema.json");

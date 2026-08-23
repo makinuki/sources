@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "description": "Reference MakiNuki source plugins",
   "license": "MIT",
-  "author": { "name": "Byururu-sama", "url": "https://github.com/Byururu-sama" },
+  "author": {
+    "name": "Byururu-sama",
+    "url": "https://github.com/Byururu-sama"
+  },
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,10 +19,10 @@
     "node": ">=22.18"
   },
   "devDependencies": {
-    "@makinuki/pdk": "^1.0.0",
-    "@makinuki/spec": "^1.1.0",
     "@extism/extism": "2.0.0-rc13",
-    "@types/node": "^24.0.0",
+    "@makinuki/pdk": "^1.3.0",
+    "@makinuki/spec": "^1.2.0",
+    "@types/node": "^24.13.3",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "typescript": "^7.0.2"

@@ -7,6 +7,7 @@ import {
   ok,
   parseChapterNumber,
   type ChapterItem,
+  type CoverVariant,
   type ErrorCode,
   type FilterSchema,
   type MangaDetails,
@@ -169,7 +170,7 @@ function relationship(record: RecordObject, type: string): RecordObject {
 const metadata: SourceMetadata = {
   id: "mangadex",
   name: "MangaDex",
-  version: "1.0.0",
+  version: "1.1.0",
   abiVersion: 1,
   lang: "multi",
   baseUrl: WEB,
@@ -440,19 +441,35 @@ function searchUrl(query: string, page: number, filters: NormalizedFilters): str
   return url.toString();
 }
 
-function coverUrl(data: RecordObject): string {
+function coverUrl(data: RecordObject): string | undefined {
   const id = String(data["id"]);
   const file = asRecord(relationship(data, "cover_art")["attributes"])["fileName"];
-  return typeof file === "string" && file.length > 0 ? `${CDN}/covers/${id}/${file}` : `${WEB}/favicon.ico`;
+  return typeof file === "string" && file.length > 0 ? `${CDN}/covers/${id}/${file}` : undefined;
+}
+
+// MangaDex serves resized derivatives of raster covers by suffixing the
+// original filename; gif originals have no derivatives and are omitted.
+function coverVariants(data: RecordObject): CoverVariant[] | undefined {
+  const file = asRecord(relationship(data, "cover_art")["attributes"])["fileName"];
+  if (typeof file !== "string" || !/\.(jpe?g|png)$/.test(file)) return undefined;
+  const base = coverUrl(data);
+  if (!base) return undefined;
+  return [
+    { url: `${base}.256.jpg`, width: 256 },
+    { url: `${base}.512.jpg`, width: 512 },
+  ];
 }
 
 function createMangaItem(data: RecordObject): MangaItem {
   const item: MangaItem = {
     id: String(data["id"]),
     title: cleanText(pickTitle(asRecord(data["attributes"]))) || "Untitled",
-    coverUrl: coverUrl(data),
     url: `${WEB}/title/${String(data["id"])}`,
   };
+  const cover = coverUrl(data);
+  if (cover) item.coverUrl = cover;
+  const variants = coverVariants(data);
+  if (variants) item.covers = variants;
   const latest = asRecord(data["attributes"])["latestChapter"];
   if (typeof latest === "string" && latest.length > 0) item.latestChapter = "Ch. " + latest;
   return item;
@@ -477,6 +494,11 @@ function createChapterItem(data: RecordObject): ChapterItem {
     .filter((name): name is string => typeof name === "string" && name.length > 0);
 
   const item: ChapterItem = { id, number: chapterNumber(attrs) };
+  const volume = attrs["volume"];
+  if (typeof volume === "string" && volume.length > 0) {
+    const parsed = Number(volume);
+    if (Number.isInteger(parsed)) item.volume = parsed;
+  }
   const language = attrs["translatedLanguage"];
   if (typeof language === "string" && language.length > 0) item.language = language;
   const title = typeof attrs["title"] === "string" ? unescapeHtml(cleanText(attrs["title"])) : "";
@@ -496,9 +518,12 @@ function createMangaDetails(data: RecordObject): MangaDetails {
     id,
     title: cleanText(pickTitle(attrs)) || "Untitled",
     status: "Unknown",
-    coverUrl: coverUrl(data),
     chapters: [],
   };
+  const cover = coverUrl(data);
+  if (cover) details.coverUrl = cover;
+  const variants = coverVariants(data);
+  if (variants) details.covers = variants;
 
   const altTitles: string[] = [];
   for (const alt of asArray(attrs["altTitles"])) {

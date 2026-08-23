@@ -12,13 +12,13 @@ importers:
         specifier: 2.0.0-rc13
         version: 2.0.0-rc13
       '@makinuki/pdk':
-        specifier: ^1.0.0
-        version: 1.0.0
+        specifier: ^1.3.0
+        version: 1.3.0
       '@makinuki/spec':
-        specifier: ^1.1.0
-        version: 1.1.0
+        specifier: ^1.2.0
+        version: 1.2.0
       '@types/node':
-        specifier: ^24.0.0
+        specifier: ^24.13.3
         version: 24.13.3
       ajv:
         specifier: ^8.20.0
@@ -33,14 +33,14 @@ importers:
   sources/asurascans:
     dependencies:
       '@makinuki/pdk':
-        specifier: ^1.0.0
-        version: 1.0.0
+        specifier: ^1.3.0
+        version: 1.3.0
 
   sources/mangadex:
     dependencies:
       '@makinuki/pdk':
-        specifier: ^1.0.0
-        version: 1.0.0
+        specifier: ^1.3.0
+        version: 1.3.0
 
 packages:
 
@@ -203,13 +203,13 @@ packages:
   '@extism/extism@2.0.0-rc13':
     resolution: {integrity: sha512-iQ3mrPKOC0WMZ94fuJrKbJmMyz4LQ9Abf8gd4F5ShxKWa+cRKcVzk0EqRQsp5xXsQ2dO3zJTiA6eTc4Ihf7k+A==}
 
-  '@makinuki/pdk@1.0.0':
-    resolution: {integrity: sha512-z8ZkIWS6kVo7cD18JHEGmtOWyBhbCdaEfpaEbdhiRb/K4QySAQTmMjak1Y13ZmYgGW5NmZqgVC0ldxEUXBxrvQ==}
+  '@makinuki/pdk@1.3.0':
+    resolution: {integrity: sha512-nvgZ6sKyBiV4wF0M0aTm6f1PmsdRkaf4w1FWKvc6sBngXR/jwFAQdJoUJ2ieUxEk5yt05sD853nkBU9M3vrhfg==}
     engines: {node: '>=20'}
     hasBin: true
 
-  '@makinuki/spec@1.1.0':
-    resolution: {integrity: sha512-S4dqTbL/i4YFiQkrinVK3LY5ex6BibyWc10pUJzM9C1CtjxLmry7jd6P/4mK494om2D+pXKjhDe8OA/L0/j0dQ==}
+  '@makinuki/spec@1.2.0':
+    resolution: {integrity: sha512-l/V64dElxGBnnAsijBvShGF98zfPKDHRVaxN8LE+tqq8zVTQ4xQITs28JExu9EbC9EI0LCOpKXW1qWBtWQpSMg==}
 
   '@types/node@24.13.3':
     resolution: {integrity: sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q==}
@@ -533,12 +533,12 @@ snapshots:
 
   '@extism/extism@2.0.0-rc13': {}
 
-  '@makinuki/pdk@1.0.0':
+  '@makinuki/pdk@1.3.0':
     dependencies:
       cheerio: 1.2.0
       esbuild: 0.28.2
 
-  '@makinuki/spec@1.1.0': {}
+  '@makinuki/spec@1.2.0': {}
 
   '@types/node@24.13.3':
     dependencies:

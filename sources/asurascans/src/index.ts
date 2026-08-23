@@ -150,7 +150,7 @@ function findIsland(html: string, predicate: (props: RecordObject) => boolean): 
 const metadata: SourceMetadata = {
   id: "asurascans",
   name: "Asura Scans",
-  version: "1.0.0",
+  version: "1.1.0",
   abiVersion: 1,
   lang: "en",
   baseUrl: WEB,
@@ -306,9 +306,10 @@ function createMangaItem(data: RecordObject): MangaItem {
   const item: MangaItem = {
     id: slug,
     title: cleanText(asString(data["title"])) || "Untitled",
-    coverUrl: asString(data["cover"]),
     url: `${WEB}${asString(data["public_url"])}`,
   };
+  const cover = asString(data["cover"]);
+  if (cover.length > 0) item.coverUrl = cover;
   const latest = asArray(data["latest_chapters"])[0];
   const latestNumber = asNumber(asRecord(latest)["number"]);
   if (latestNumber !== null) item.latestChapter = "Ch. " + String(latestNumber);
@@ -387,9 +388,10 @@ function createMangaDetails(count: RecordObject, slug: string): MangaDetails {
     id: slug,
     title: cleanText(asString(count["title"])) || "Untitled",
     status: parseStatus(count["status"]),
-    coverUrl: asString(count["coverUrl"]),
     chapters: [],
   };
+  const cover = asString(count["coverUrl"]);
+  if (cover.length > 0) details.coverUrl = cover;
 
   const altTitles = altTitlesFrom(count["alternativeTitles"]);
   if (altTitles.length > 0) details.altTitles = altTitles;
