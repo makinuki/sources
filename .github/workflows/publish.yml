@@ -1,3 +1,7 @@
+# Continuous registry pipeline: every master push rebuilds the plugin
+# catalog and republishes makinuki.github.io. Per-source releases use the
+# separate tag-triggered release workflow instead.
+
 name: publish-registry
 
 on:
@@ -13,39 +17,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          path: sources
-
-      - uses: actions/checkout@v7
-        with:
-          repository: makinuki/spec
-          path: spec
-          token: ${{ secrets.MAKINUKI_BOT_TOKEN }}
-
-      - uses: actions/checkout@v7
-        with:
-          repository: makinuki/pdk-ts
-          path: pdk-ts
-          token: ${{ secrets.MAKINUKI_BOT_TOKEN }}
 
       - uses: pnpm/setup@v1
         with:
           version: 11.22.0
           runtime: node@24
 
-      - name: install pdk deps
-        working-directory: pdk-ts
-        run: pnpm install --frozen-lockfile
-
-      - name: install workspace deps
-        working-directory: sources
-        run: pnpm install --frozen-lockfile
-
-      - name: install wasm toolchain (extism-js, binaryen)
+      - name: install wasm toolchain (extism-js)
         run: |
           curl -fsSL -o install-extism.sh https://raw.githubusercontent.com/extism/js-pdk/main/install.sh
           bash install-extism.sh v1.6.0
           extism-js --version
+
+      - name: install workspace deps
+        working-directory: sources
+        run: pnpm install --frozen-lockfile
 
       - name: build plugins
         working-directory: sources
@@ -59,37 +45,12 @@ jobs:
         working-directory: sources
         run: pnpm generate-index
 
-      - name: deploy registry
-        env:
-          TOKEN: ${{ secrets.MAKINUKI_BOT_TOKEN }}
-        run: |
-          git config --global user.name "Byururu-sama"
-          git config --global user.email "97214346+Byururu-sama@users.noreply.github.com"
-          git clone https://github.com/makinuki/makinuki.github.io.git registry
-          cd registry
-          git remote set-url origin "https://x-access-token:${TOKEN}@github.com/makinuki/makinuki.github.io.git"
-          rm -rf index.json wasm
-          cp ../sources/dist/index.json index.json
-          cp -r ../sources/dist/wasm wasm
-          git add -A
-          if git diff --cached --quiet; then
-            echo "registry unchanged, nothing to push"
-          else
-            git commit -m "chore(registry): publish sources build"
-            git push origin main
-          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: sources/dist
 
-      - name: verify live registry
-        run: |
-          curl -fsSL https://makinuki.github.io/index.json -o index.live.json
-          node -e "
-            const { execSync } = require('node:child_process');
-            const a = require('./index.live.json');
-            if (a.version !== 1 || !Array.isArray(a.sources) || a.sources.length === 0) { console.error('bad live index'); process.exit(1); }
-            console.log('live index ok, sources=' + a.sources.length);
-            for (const s of a.sources) {
-              const actual = execSync('curl -fsSL ' + s.wasmUrl + ' | sha256sum').toString().trim().split(/\s+/)[0];
-              if (actual !== s.sha256) { console.error('sha mismatch: ' + s.id); process.exit(1); }
-              console.log('sha ok: ' + s.id);
-            }
-          "
+  deploy:
+    needs: build
+    uses: ./.github/workflows/deploy-registry.yml
+    secrets: inherit

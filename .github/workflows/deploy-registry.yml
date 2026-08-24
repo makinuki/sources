@@ -1,0 +1,93 @@
+# Deploys freshly generated registry artifacts (index.json plus wasm/) to
+# makinuki.github.io. Called by the continuous master pipeline and by
+# per-source tag releases; expects an uploaded artifact named dist holding
+# the generated registry output. Deployment is serialized through a single
+# concurrency group so concurrent callers cannot clobber each other on the
+# pages repository, and refuses version downgrades relative to the live
+# registry. Byte-identical rebuilds are not expected: wasm output embeds
+# non-deterministic data, so artifact identity comes from the versioned
+# filename plus the recorded sha256, never from reproducible builds.
+
+name: deploy-registry
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: registry-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      # Only strict downgrades are rejected. Equal versions are the
+      # steady state of the continuous pipeline, which rebuilds and
+      # republishes unchanged plugins on every master push.
+      - name: verify no version downgrades against live registry
+        run: |
+          node --input-type=module -e "
+            import fs from 'node:fs';
+            const fresh = JSON.parse(fs.readFileSync('dist/index.json', 'utf8'));
+            const live = await (await fetch('https://makinuki.github.io/index.json')).json();
+            const byId = new Map(live.sources.map((s) => [s.id, s]));
+            const triple = (v) => v.split('.').map(Number);
+            const cmp = (a, b) => {
+              const x = triple(a); const y = triple(b);
+              for (let i = 0; i < 3; i++) { if (x[i] !== y[i]) return x[i] > y[i] ? 1 : -1; }
+              return 0;
+            };
+            let bad = false;
+            for (const s of fresh.sources) {
+              const prev = byId.get(s.id);
+              if (!prev) continue;
+              if (cmp(s.version, prev.version) < 0) {
+                console.error('version downgrade: ' + s.id + ' ' + s.version + ' < live ' + prev.version);
+                bad = true;
+              }
+            }
+            if (bad) process.exit(1);
+          "
+
+      - name: deploy registry
+        env:
+          TOKEN: ${{ secrets.MAKINUKI_BOT_TOKEN }}
+        run: |
+          git config --global user.name "Byururu-sama"
+          git config --global user.email "97214346+Byururu-sama@users.noreply.github.com"
+          git clone https://github.com/makinuki/makinuki.github.io.git registry
+          cd registry
+          git remote set-url origin "https://x-access-token:${TOKEN}@github.com/makinuki/makinuki.github.io.git"
+          rm -rf index.json wasm
+          cp ../dist/index.json index.json
+          cp -r ../dist/wasm wasm
+          git add -A
+          if git diff --cached --quiet; then
+            echo "registry unchanged, nothing to push"
+          else
+            git commit -m "chore(registry): publish sources build"
+            git push origin main
+          fi
+
+      - name: verify live registry
+        run: |
+          curl -fsSL https://makinuki.github.io/index.json -o index.live.json
+          node -e "
+            const { execSync } = require('node:child_process');
+            const a = require('./index.live.json');
+            if (a.version !== 1 || !Array.isArray(a.sources) || a.sources.length === 0) { console.error('bad live index'); process.exit(1); }
+            console.log('live index ok, sources=' + a.sources.length);
+            for (const s of a.sources) {
+              const actual = execSync('curl -fsSL ' + s.wasmUrl + ' | sha256sum').toString().trim().split(/\s+/)[0];
+              if (actual !== s.sha256) { console.error('sha mismatch: ' + s.id); process.exit(1); }
+              console.log('sha ok: ' + s.id);
+            }
+          "

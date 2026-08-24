@@ -1,0 +1,129 @@
+# Publishes a single source plugin when its <id>-vX.Y.Z tag lands on
+# master. Tags are cut locally with scripts/release.sh. The pipeline
+# builds all plugins, runs conformance tests for the tagged one, verifies
+# that the built plugin metadata matches the tag, deploys the registry,
+# and creates a GitHub Release carrying the versioned wasm artifact and
+# the matching changelog section.
+
+name: Release source
+
+on:
+  push:
+    tags:
+      - '*-v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      id: ${{ steps.tag.outputs.id }}
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: parse tag
+        id: tag
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          if ! [[ "$tag" =~ ^([A-Za-z0-9_-]+)-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "unexpected tag format: $tag (expected <id>-vX.Y.Z)" >&2
+            exit 1
+          fi
+          echo "id=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          echo "version=${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
+
+      - uses: pnpm/setup@v1
+        with:
+          version: 11.22.0
+          runtime: node@24
+
+      - name: install wasm toolchain (extism-js)
+        run: |
+          curl -fsSL -o install-extism.sh https://raw.githubusercontent.com/extism/js-pdk/main/install.sh
+          bash install-extism.sh v1.6.0
+          extism-js --version
+
+      - name: install workspace deps
+        working-directory: sources
+        run: pnpm install --frozen-lockfile
+
+      - name: build plugins
+        working-directory: sources
+        run: pnpm build
+
+      - name: test tagged plugin
+        working-directory: sources
+        run: pnpm test "${{ steps.tag.outputs.id }}"
+
+      - name: generate registry index
+        working-directory: sources
+        run: pnpm generate-index
+
+      # generate-index names artifacts from each plugin's get_metadata
+      # output, so the presence of this exact file proves that the built
+      # metadata matches the tag.
+      - name: verify tag matches built metadata
+        env:
+          ID: ${{ steps.tag.outputs.id }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          file="sources/dist/wasm/${ID}-v${VERSION}.wasm"
+          if [ ! -f "$file" ]; then
+            echo "no artifact $file; built metadata does not match tag ${GITHUB_REF#refs/tags/}" >&2
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: sources/dist
+
+  deploy:
+    needs: build
+    uses: ./.github/workflows/deploy-registry.yml
+    secrets: inherit
+
+  github-release:
+    needs: [build, deploy]
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      # Ship the changelog section for the tagged version as release
+      # notes, falling back to the bare tag when the section is missing.
+      # Matching uses index() rather than a regex so the version string
+      # needs no escaping.
+      - name: extract release notes
+        env:
+          ID: ${{ needs.build.outputs.id }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          awk -v ver="${VERSION}" '
+            index($0, "## [" ver "]") == 1 { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' "sources/${ID}/CHANGELOG.md" > notes.md
+          if [ ! -s notes.md ]; then
+            echo "${GITHUB_REF#refs/tags/}" > notes.md
+          fi
+
+      - name: create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ID: ${{ needs.build.outputs.id }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          gh release create "${GITHUB_REF#refs/tags/}" \
+            "dist/wasm/${ID}-v${VERSION}.wasm" \
+            --title "release: ${ID} v${VERSION}" \
+            --notes-file notes.md
