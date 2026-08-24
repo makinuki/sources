@@ -150,7 +150,7 @@ function findIsland(html: string, predicate: (props: RecordObject) => boolean): 
 const metadata: SourceMetadata = {
   id: "asurascans",
   name: "Asura Scans",
-  version: "1.1.0",
+  version: "1.1.1",
   abiVersion: 1,
   lang: "en",
   baseUrl: WEB,
@@ -376,6 +376,7 @@ function createChapterItem(
     number,
     title: `Chapter ${numberStr}`,
     url: chapterUrl,
+    language: "en",
   };
   const createdAt = asString(data["published_at"]);
   const parsed = Date.parse(createdAt);
