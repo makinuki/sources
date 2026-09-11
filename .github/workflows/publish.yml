@@ -30,25 +30,21 @@ jobs:
           extism-js --version
 
       - name: install workspace deps
-        working-directory: sources
         run: pnpm install --frozen-lockfile
 
       - name: build plugins
-        working-directory: sources
         run: pnpm build
 
       - name: conformance tests
-        working-directory: sources
         run: pnpm test
 
       - name: generate registry index
-        working-directory: sources
         run: pnpm generate-index
 
       - uses: actions/upload-artifact@v4
         with:
           name: dist
-          path: sources/dist
+          path: dist
 
   deploy:
     needs: build

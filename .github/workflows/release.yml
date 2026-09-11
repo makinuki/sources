@@ -47,19 +47,15 @@ jobs:
           extism-js --version
 
       - name: install workspace deps
-        working-directory: sources
         run: pnpm install --frozen-lockfile
 
       - name: build plugins
-        working-directory: sources
         run: pnpm build
 
       - name: test tagged plugin
-        working-directory: sources
         run: pnpm test "${{ steps.tag.outputs.id }}"
 
       - name: generate registry index
-        working-directory: sources
         run: pnpm generate-index
 
       # generate-index names artifacts from each plugin's get_metadata
@@ -70,7 +66,7 @@ jobs:
           ID: ${{ steps.tag.outputs.id }}
           VERSION: ${{ steps.tag.outputs.version }}
         run: |
-          file="sources/dist/wasm/${ID}-v${VERSION}.wasm"
+          file="dist/wasm/${ID}-v${VERSION}.wasm"
           if [ ! -f "$file" ]; then
             echo "no artifact $file; built metadata does not match tag ${GITHUB_REF#refs/tags/}" >&2
             exit 1
@@ -79,7 +75,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: dist
-          path: sources/dist
+          path: dist
 
   deploy:
     needs: build
