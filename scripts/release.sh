@@ -9,6 +9,10 @@
 # creates the release commit and an annotated tag.
 # Nothing is pushed; the script prints the push command.
 #
+# A plugin that carries no release tag has never been released, so it may be
+# cut at the version it already declares (scripts/release.sh <id> 1.0.0).
+# Every later release has to exceed the declared version.
+#
 # usage: scripts/release.sh <plugin-id> <patch|minor|major>
 #        scripts/release.sh <plugin-id> <x.y.z>
 set -eu
@@ -114,8 +118,6 @@ else
     fi
     next="$major.$minor.$patch"
 fi
-version_gt "$next" "$version" ||
-    fail "new version $next must be greater than current $version"
 
 # Release discipline per plugin. The script performs the version bump, so
 # the guards only reject pointless releases (no source change and an
@@ -123,6 +125,14 @@ version_gt "$next" "$version" ||
 # would collide with or undercut an existing release tag. --tags keeps
 # lightweight tags visible to the guard as well.
 prev_tag="$(git describe --abbrev=0 --tags --match "$id-v*" 2>/dev/null || true)"
+
+if version_gt "$next" "$version"; then
+    :
+elif [ "$next" = "$version" ] && [ -z "$prev_tag" ]; then
+    echo "first release for $id at its declared version $next"
+else
+    fail "new version $next must be greater than current $version"
+fi
 if [ -n "$prev_tag" ]; then
     tagged_version="$(git show "$prev_tag:$src" | read_plugin_version -)"
     if [ -z "$(git diff --name-only "$prev_tag" -- "$plugin_dir/src")" ] &&
