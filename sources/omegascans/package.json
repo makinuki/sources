@@ -1,0 +1,10 @@
+{
+  "name": "@makinuki/source-omegascans",
+  "version": "0.1.0",
+  "description": "Omega Scans source plugin (HTML scraping based)",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@makinuki/pdk": "^1.3.0"
+  }
+}
