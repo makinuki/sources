@@ -53,13 +53,16 @@ be reached without a browser, in `sources/<id>/test.json`:
 }
 ```
 
-`challengeGated` marks a source that fronts its catalogue with an anti-bot
-challenge. The runner then reports `SKIP` for it instead of a failure, as
-long as the plugin still answers with a well-formed envelope carrying
-`CLOUDFLARE_BLOCKED`; any other error still fails the run, so a plugin that
-regresses into a different failure mode is caught. To run the full check for
-such a source, solve the challenge in a browser and pass that browser's
-credentials to the runner:
+`challengeGated` marks a source whose catalogue is behind an anti-bot
+challenge that a runner without a browser cannot pass. Hosting networks are
+challenged far more often than ordinary connections, so a source can be fully
+reachable from a desktop and still be gated from CI; the marker makes that
+difference explicit instead of leaving the pipeline red. The runner then
+reports `SKIP` for such a source instead of a failure, as long as the plugin
+still answers with a well-formed envelope carrying `CLOUDFLARE_BLOCKED`; any
+other error still fails the run, so a plugin that regresses into a different
+failure mode is caught. To run the full check for such a source, solve the
+challenge in a browser and pass that browser's credentials to the runner:
 
 ```sh
 MAKINUKI_TEST_UA="<browser user agent>" \
