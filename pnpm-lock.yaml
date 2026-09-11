@@ -36,7 +36,79 @@ importers:
         specifier: ^1.3.0
         version: 1.3.0
 
+  sources/atsumaru:
+    dependencies:
+      '@makinuki/pdk':
+        specifier: ^1.3.0
+        version: 1.3.0
+
+  sources/batcave:
+    dependencies:
+      '@makinuki/pdk':
+        specifier: ^1.3.0
+        version: 1.3.0
+
+  sources/comix:
+    dependencies:
+      '@makinuki/pdk':
+        specifier: ^1.3.0
+        version: 1.3.0
+
+  sources/cubari:
+    dependencies:
+      '@makinuki/pdk':
+        specifier: ^1.3.0
+        version: 1.3.0
+
+  sources/kagane:
+    dependencies:
+      '@makinuki/pdk':
+        specifier: ^1.3.0
+        version: 1.3.0
+
+  sources/mangaball:
+    dependencies:
+      '@makinuki/pdk':
+        specifier: ^1.3.0
+        version: 1.3.0
+
   sources/mangadex:
+    dependencies:
+      '@makinuki/pdk':
+        specifier: ^1.3.0
+        version: 1.3.0
+
+  sources/mangadotnet:
+    dependencies:
+      '@makinuki/pdk':
+        specifier: ^1.3.0
+        version: 1.3.0
+
+  sources/mangafire:
+    dependencies:
+      '@makinuki/pdk':
+        specifier: ^1.3.0
+        version: 1.3.0
+
+  sources/mangago:
+    dependencies:
+      '@makinuki/pdk':
+        specifier: ^1.3.0
+        version: 1.3.0
+
+  sources/mangakakalot:
+    dependencies:
+      '@makinuki/pdk':
+        specifier: ^1.3.0
+        version: 1.3.0
+
+  sources/omegascans:
+    dependencies:
+      '@makinuki/pdk':
+        specifier: ^1.3.0
+        version: 1.3.0
+
+  sources/weebcentral:
     dependencies:
       '@makinuki/pdk':
         specifier: ^1.3.0
