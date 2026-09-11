@@ -159,7 +159,21 @@ async function runSource(source: string): Promise<boolean> {
     pass("get_filters", `${filters.length} (${Object.entries(counts).map(([t, n]) => `${t}x${n}`).join(", ")})`);
   }
 
-  const query = opts.search ?? "a";
+  // A source whose search maps direct links instead of a server-side
+  // catalogue can pin the locators the default run exercises in
+  // sources/<id>/test.json; explicit CLI options still win.
+  const fixturePath = join(root, "sources", source, "test.json");
+  let fixture: { search?: string; details?: string; pages?: string } = {};
+  if (existsSync(fixturePath)) {
+    try {
+      fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as typeof fixture;
+    } catch {
+      fail("fixture", `sources/${source}/test.json is not valid JSON`);
+      return false;
+    }
+  }
+
+  const query = opts.search ?? fixture.search ?? "a";
   const page = Number(opts.page ?? "1");
   const filtersJson = (() => {
     if (!opts.filters) return {};
@@ -208,8 +222,8 @@ async function runSource(source: string): Promise<boolean> {
   // that carries chapters. Search ranking is data-driven, so the top hit can
   // be a title whose chapters are unavailable; probing a few candidates keeps
   // the default run stable without pinning a fixture that would rot.
-  const candidates = opts.details
-    ? [opts.details]
+  const candidates = (opts.details ?? fixture.details)
+    ? [String(opts.details ?? fixture.details)]
     : searchData.items.slice(0, DETAILS_PROBES).map((item) => String(item.id));
   if (candidates.length === 0) {
     fail("get_details", "no id available (search returned no items and no --details given)");
@@ -261,7 +275,7 @@ async function runSource(source: string): Promise<boolean> {
       (probed > 1 ? ` after ${probed} candidates` : "")
   );
 
-  const pagesId = opts.pages ?? (chapters[0]?.id as string | undefined);
+  const pagesId = opts.pages ?? fixture.pages ?? (chapters[0]?.id as string | undefined);
   if (!pagesId) {
     fail("get_pages", "no chapter id available (details has no chapters and no --pages given)");
     return false;
