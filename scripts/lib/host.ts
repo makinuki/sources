@@ -17,6 +17,53 @@ export const WASM_EXPORTS = ["get_metadata", "get_filters", "search", "get_detai
 
 const store = new Map<string, string>();
 
+// Cookies are part of the environment a browser-shaped source expects. The
+// runner keeps its own jar so a session established by one request reaches
+// the next, exactly as the plugin runtime does.
+const cookieJar = new Map<string, Map<string, string>>();
+
+function jarFor(url: string): Map<string, string> {
+  const host = new URL(url).hostname;
+  let jar = cookieJar.get(host);
+  if (!jar) {
+    jar = new Map();
+    cookieJar.set(host, jar);
+  }
+  return jar;
+}
+
+function parseCookieHeader(value: string): Array<[string, string]> {
+  const entries: Array<[string, string]> = [];
+  for (const part of value.split(";")) {
+    const trimmed = part.trim();
+    if (trimmed.length === 0) continue;
+    const separator = trimmed.indexOf("=");
+    if (separator <= 0) continue;
+    entries.push([trimmed.slice(0, separator).trim(), trimmed.slice(separator + 1).trim()]);
+  }
+  return entries;
+}
+
+function withStoredCookies(url: string, header: string | undefined): string {
+  const merged = new Map<string, string>();
+  const jar = cookieJar.get(new URL(url).hostname);
+  if (jar) {
+    for (const [name, value] of jar) merged.set(name, value);
+  }
+  for (const [name, value] of parseCookieHeader(header ?? "")) merged.set(name, value);
+  return Array.from(merged, ([name, value]) => `${name}=${value}`).join("; ");
+}
+
+function rememberCookies(url: string, response: { headers: { getSetCookie?: () => string[] } }): void {
+  const entries = typeof response.headers.getSetCookie === "function" ? response.headers.getSetCookie() : [];
+  for (const entry of entries) {
+    const [pair] = entry.split(";");
+    const separator = pair.indexOf("=");
+    if (separator <= 0) continue;
+    jarFor(url).set(pair.slice(0, separator).trim(), pair.slice(separator + 1).trim());
+  }
+}
+
 export interface PluginCallResult {
   text(): string;
 }
@@ -34,15 +81,23 @@ const hostFunctions = {
         headers?: Record<string, string>;
         body?: string;
       };
+      const headers: Record<string, string> = {
+        ...(req.headers ?? {}),
+        "User-Agent": UA,
+        ...(COOKIE.length > 0 ? { Cookie: COOKIE } : {}),
+      };
+      const jarCookie = withStoredCookies(req.url, headers["Cookie"]);
+      if (jarCookie.length > 0) {
+        headers["Cookie"] = jarCookie;
+      } else {
+        delete headers["Cookie"];
+      }
       const res = await fetch(req.url, {
         method: req.method ?? "GET",
-        headers: {
-          ...(req.headers ?? {}),
-          "User-Agent": UA,
-          ...(COOKIE.length > 0 ? { Cookie: COOKIE } : {}),
-        },
+        headers,
         body: req.body,
       });
+      rememberCookies(req.url, res);
       return ctx.store(
         JSON.stringify({ status: res.status, headers: Object.fromEntries(res.headers), body: await res.text() })
       );
