@@ -49,6 +49,7 @@ const opts = values as unknown as {
 
 let fails = 0;
 let passes = 0;
+let skipped = false;
 
 function pass(name: string, info?: string) {
   passes++;
@@ -94,6 +95,20 @@ function checkEnvelope(data: unknown): string | null {
   return null;
 }
 
+// A source that fronts its catalogue with an anti-bot challenge cannot be
+// exercised from a runner with no browser. When the source declares itself
+// challenge-gated, a challenge-shaped error envelope is reported as a skip
+// rather than a failure; every other outcome still fails the run, so a
+// plugin that starts returning the wrong error or a malformed envelope is
+// still caught.
+function gatedSkip(name: string, envErr: string, result: { ok: boolean; error?: unknown }, gateable: boolean): boolean {
+  const code = result.ok === false ? String((result.error as { code?: unknown } | undefined)?.code ?? "") : "";
+  if (!gateable || code !== "CLOUDFLARE_BLOCKED") return false;
+  skipped = true;
+  console.log(`SKIP ${name}: ${envErr} (declared challenge-gated; a browser solves this, the runner cannot)`);
+  return true;
+}
+
 function requireUnique(ids: Array<string | undefined>, what: string): string | null {
   const seen = new Set<string>();
   for (const id of ids) {
@@ -107,6 +122,7 @@ function requireUnique(ids: Array<string | undefined>, what: string): string | n
 async function runSource(source: string): Promise<boolean> {
   fails = 0;
   passes = 0;
+  skipped = false;
   const wasmPath = join(distDir, `${source}.wasm`);
   if (!existsSync(wasmPath)) {
     fail("load", `no such plugin: ${wasmPath}`);
@@ -163,7 +179,7 @@ async function runSource(source: string): Promise<boolean> {
   // catalogue can pin the locators the default run exercises in
   // sources/<id>/test.json; explicit CLI options still win.
   const fixturePath = join(root, "sources", source, "test.json");
-  let fixture: { search?: string; details?: string; pages?: string } = {};
+  let fixture: { search?: string; details?: string; pages?: string; challengeGated?: boolean } = {};
   if (existsSync(fixturePath)) {
     try {
       fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as typeof fixture;
@@ -172,6 +188,7 @@ async function runSource(source: string): Promise<boolean> {
       return false;
     }
   }
+  const gateable = fixture.challengeGated === true;
 
   const query = opts.search ?? fixture.search ?? "a";
   const page = Number(opts.page ?? "1");
@@ -191,6 +208,7 @@ async function runSource(source: string): Promise<boolean> {
     const result = JSON.parse(raw) as { ok: boolean; data?: unknown; error?: unknown };
     const envErr = checkEnvelope(result);
     if (envErr) {
+      if (gatedSkip("search", envErr, result, gateable)) return true;
       fail("search", `${envErr} (query=${query} page=${page})`);
       return false;
     }
@@ -239,6 +257,7 @@ async function runSource(source: string): Promise<boolean> {
     const result = JSON.parse(raw) as { ok: boolean; data?: unknown; error?: unknown };
     const envErr = checkEnvelope(result);
     if (envErr) {
+      if (gatedSkip("get_details", envErr, result, gateable)) return true;
       fail("get_details", envErr);
       return false;
     }
@@ -286,6 +305,7 @@ async function runSource(source: string): Promise<boolean> {
     const result = JSON.parse(raw) as { ok: boolean; data?: unknown; error?: unknown };
     const envErr = checkEnvelope(result);
     if (envErr) {
+      if (gatedSkip("get_pages", envErr, result, gateable)) return true;
       fail("get_pages", envErr);
       return false;
     }
@@ -327,16 +347,23 @@ async function runSource(source: string): Promise<boolean> {
 
 (async () => {
   let allOk = true;
+  let gated = 0;
   for (const target of targets) {
     const ok = await runSource(target);
     const total = passes + fails;
     console.log("==================================================================");
-    console.log(ok ? `RESULT: PASS (${passes}/${total})` : `RESULT: FAIL (${passes}/${total})`);
+    if (skipped) {
+      gated++;
+      console.log(`RESULT: SKIP (${passes}/${total} structural checks; source is challenge-gated)`);
+    } else {
+      console.log(ok ? `RESULT: PASS (${passes}/${total})` : `RESULT: FAIL (${passes}/${total})`);
+    }
     if (!ok) allOk = false;
   }
   if (targets.length > 1) {
     console.log("==================================================================");
-    console.log(allOk ? `ALL SOURCES PASS (${targets.length})` : `SOME SOURCES FAILED (${targets.length})`);
+    const suffix = gated > 0 ? `, ${gated} challenge-gated` : "";
+    console.log(allOk ? `ALL SOURCES PASS (${targets.length}${suffix})` : `SOME SOURCES FAILED (${targets.length})`);
   }
   process.exitCode = allOk ? 0 : 1;
 })().catch((err) => {
