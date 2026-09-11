@@ -7,6 +7,10 @@ Section 7).
 
 ## [Unreleased]
 
+- Key chapter identity on the stable series slug instead of the rotating
+  per-series URL suffix. A suffix rotation no longer reads as a full chapter
+  replacement, and the stable chapter URL redirects to the current suffix.
+
 ## [1.1.1] - 2026-08-24
 
 - Declare chapter language (`en`) on chapter items.

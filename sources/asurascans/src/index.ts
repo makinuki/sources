@@ -361,16 +361,21 @@ function chapterNumber(number: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function createChapterItem(
-  data: RecordObject,
-  randomSlug: string,
-  seriesSlug: string,
-): ChapterItem | null {
+// The site serves a title under a rotating per-series URL suffix. Chapter
+// identity must use the stable series slug instead, otherwise every rotation
+// reads as a fresh set of chapters; the stable URL redirects to the current
+// suffix, so page fetches keep working.
+function stableSeriesSlug(value: string): string {
+  return value.replace(/-[a-z0-9]{8}$/, "");
+}
+
+function createChapterItem(data: RecordObject, fallbackSlug: string): ChapterItem | null {
   const number = chapterNumber(data["number"]);
   if (number === null) return null;
   if (data["is_premium"] === true) return null;
   const numberStr = formatNumber(number);
-  const chapterUrl = `${WEB}/comics/${randomSlug}/chapter/${numberStr}`;
+  const seriesSlug = stableSeriesSlug(asString(data["series_slug"])) || stableSeriesSlug(fallbackSlug);
+  const chapterUrl = `${WEB}/comics/${seriesSlug}/chapter/${numberStr}`;
   const item: ChapterItem = {
     id: chapterUrl,
     number,
@@ -464,11 +469,8 @@ export function get_details(): I32 {
       );
       const chaptersIsland = findIsland(html, (props) => props["chapters"] !== undefined && props["publicUrl"] !== undefined);
       const details = createMangaDetails(metaIsland, slug);
-      const publicUrl = asString(chaptersIsland["publicUrl"]);
-      const segments = publicUrl.split("/").filter((part) => part.length > 0);
-      const randomSlug = segments.length > 0 ? segments[segments.length - 1] : slug;
       details.chapters = asArray(chaptersIsland["chapters"])
-        .map((entry) => createChapterItem(asRecord(entry), randomSlug, details.id))
+        .map((entry) => createChapterItem(asRecord(entry), details.id))
         .filter((chapter): chapter is ChapterItem => chapter !== null);
       return details;
     }),
