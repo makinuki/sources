@@ -48,12 +48,6 @@ importers:
         specifier: ^1.3.0
         version: 1.3.0
 
-  sources/comix:
-    dependencies:
-      '@makinuki/pdk':
-        specifier: ^1.3.0
-        version: 1.3.0
-
   sources/cubari:
     dependencies:
       '@makinuki/pdk':
@@ -85,12 +79,6 @@ importers:
         version: 1.3.0
 
   sources/mangafire:
-    dependencies:
-      '@makinuki/pdk':
-        specifier: ^1.3.0
-        version: 1.3.0
-
-  sources/mangago:
     dependencies:
       '@makinuki/pdk':
         specifier: ^1.3.0
