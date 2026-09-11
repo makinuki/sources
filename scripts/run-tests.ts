@@ -13,6 +13,9 @@ const distDir = join(root, "dist");
 const specDir = join(dirname(require.resolve("@makinuki/spec/package.json")), "schemas");
 
 const SCRAMBLE_LAYOUTS = ["slice", "shift", "custom"] as const;
+// How many search results the default run probes for a title that carries
+// chapters before giving up.
+const DETAILS_PROBES = 5;
 
 const { values, positionals } = parseArgs({
   args: process.argv.slice(2),
@@ -201,15 +204,24 @@ async function runSource(source: string): Promise<boolean> {
     );
   }
 
-  const detailsId = opts.details ?? (searchData.items[0]?.id as string | undefined);
-  if (!detailsId) {
+  // Details target: an explicit --details value, or the first search result
+  // that carries chapters. Search ranking is data-driven, so the top hit can
+  // be a title whose chapters are unavailable; probing a few candidates keeps
+  // the default run stable without pinning a fixture that would rot.
+  const candidates = opts.details
+    ? [opts.details]
+    : searchData.items.slice(0, DETAILS_PROBES).map((item) => String(item.id));
+  if (candidates.length === 0) {
     fail("get_details", "no id available (search returned no items and no --details given)");
     return false;
   }
 
   let chapters: Array<Record<string, unknown>> = [];
-  {
-    const raw = (await plugin.call("get_details", JSON.stringify(detailsId))).text();
+  let detailsId = "";
+  let detailsStatus = "";
+  let probed = 0;
+  for (const candidate of candidates) {
+    const raw = (await plugin.call("get_details", JSON.stringify(candidate))).text();
     const result = JSON.parse(raw) as { ok: boolean; data?: unknown; error?: unknown };
     const envErr = checkEnvelope(result);
     if (envErr) {
@@ -228,8 +240,8 @@ async function runSource(source: string): Promise<boolean> {
       fail("get_details", schemaErrors(v));
       return false;
     }
-    if (details.id !== detailsId) {
-      fail("get_details", `id mismatch: requested ${detailsId}, got ${details.id}`);
+    if (details.id !== candidate) {
+      fail("get_details", `id mismatch: requested ${candidate}, got ${details.id}`);
       return false;
     }
     const dup = requireUnique(details.chapters.map((c) => String(c.id ?? "")), "chapters");
@@ -237,9 +249,17 @@ async function runSource(source: string): Promise<boolean> {
       fail("get_details", dup);
       return false;
     }
+    probed++;
     chapters = details.chapters;
-    pass("get_details", `${detailsId} chapters=${chapters.length} status=${details.status}`);
+    detailsId = candidate;
+    detailsStatus = details.status;
+    if (chapters.length > 0) break;
   }
+  pass(
+    "get_details",
+    `${detailsId} chapters=${chapters.length} status=${detailsStatus}` +
+      (probed > 1 ? ` after ${probed} candidates` : "")
+  );
 
   const pagesId = opts.pages ?? (chapters[0]?.id as string | undefined);
   if (!pagesId) {
