@@ -41,6 +41,32 @@ asserting payloads against the schemas and exercising live endpoints.
 Pass one or more plugin ids to scope it, e.g. `pnpm test mangadex`. The
 runner talks to real source websites, so network access is required.
 
+A source can pin the locators the run exercises, or declare that it cannot
+be reached without a browser, in `sources/<id>/test.json`:
+
+```json
+{
+  "search": "query",
+  "details": "series-locator",
+  "pages": "chapter-locator",
+  "challengeGated": true
+}
+```
+
+`challengeGated` marks a source that fronts its catalogue with an anti-bot
+challenge. The runner then reports `SKIP` for it instead of a failure, as
+long as the plugin still answers with a well-formed envelope carrying
+`CLOUDFLARE_BLOCKED`; any other error still fails the run, so a plugin that
+regresses into a different failure mode is caught. To run the full check for
+such a source, solve the challenge in a browser and pass that browser's
+credentials to the runner:
+
+```sh
+MAKINUKI_TEST_UA="<browser user agent>" \
+MAKINUKI_TEST_COOKIE="cf_clearance=<value>" \
+  pnpm test <id>
+```
+
 ## Schemas
 
 The JSON Schemas live in the spec repository and are consumed through the
