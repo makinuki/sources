@@ -5,7 +5,7 @@ plugin version follows semver; contract-level changes follow the ABI
 versioning policy defined in the spec repository (SPECIFICATION.md,
 Section 7).
 
-## [Unreleased]
+## [1.1.3] - 2026-09-11
 
 - Declare the site's current logo as the source icon. The previous favicon
   path answers with not found, so the icon never resolved.
