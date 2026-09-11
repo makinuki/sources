@@ -8,7 +8,11 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const pdkPath = dirname(require.resolve("@makinuki/pdk/package.json", { paths: [root] }));
 const extism = require(require.resolve("@extism/extism", { paths: [pdkPath] }));
 
-export const UA = "MakiNuki/0.1 (github.com/makinuki; conformance runner)";
+// A challenged source can only be exercised with the clearance material an
+// operator obtained in a browser, so both the user agent and the cookie jar
+// can be overridden for a run.
+export const UA = process.env.MAKINUKI_TEST_UA?.trim() || "MakiNuki/0.1 (github.com/makinuki; conformance runner)";
+export const COOKIE = process.env.MAKINUKI_TEST_COOKIE?.trim() ?? "";
 export const WASM_EXPORTS = ["get_metadata", "get_filters", "search", "get_details", "get_pages"] as const;
 
 const store = new Map<string, string>();
@@ -32,7 +36,11 @@ const hostFunctions = {
       };
       const res = await fetch(req.url, {
         method: req.method ?? "GET",
-        headers: { ...(req.headers ?? {}), "User-Agent": UA },
+        headers: {
+          ...(req.headers ?? {}),
+          "User-Agent": UA,
+          ...(COOKIE.length > 0 ? { Cookie: COOKIE } : {}),
+        },
         body: req.body,
       });
       return ctx.store(
