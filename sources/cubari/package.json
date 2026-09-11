@@ -1,0 +1,10 @@
+{
+  "name": "@makinuki/source-cubari",
+  "version": "0.1.0",
+  "description": "Cubari source plugin (JSON API based)",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@makinuki/pdk": "^1.3.0"
+  }
+}
