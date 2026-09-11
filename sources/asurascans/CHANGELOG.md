@@ -5,7 +5,7 @@ plugin version follows semver; contract-level changes follow the ABI
 versioning policy defined in the spec repository (SPECIFICATION.md,
 Section 7).
 
-## [Unreleased]
+## [1.1.2] - 2026-09-11
 
 - Key chapter identity on the stable series slug instead of the rotating
   per-series URL suffix. A suffix rotation no longer reads as a full chapter
