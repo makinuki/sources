@@ -5,6 +5,11 @@ plugin version follows semver; contract-level changes follow the ABI
 versioning policy defined in the spec repository (SPECIFICATION.md,
 Section 7).
 
+## [Unreleased]
+
+- Declare the site's current logo as the source icon. The previous favicon
+  path answers with not found, so the icon never resolved.
+
 ## [1.1.2] - 2026-09-11
 
 - Key chapter identity on the stable series slug instead of the rotating

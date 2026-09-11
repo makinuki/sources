@@ -154,7 +154,7 @@ const metadata: SourceMetadata = {
   abiVersion: 1,
   lang: "en",
   baseUrl: WEB,
-  iconUrl: "https://asurascans.com/favicon.ico",
+  iconUrl: "https://asurascans.com/images/logo.webp",
   nsfw: false,
 };
 
