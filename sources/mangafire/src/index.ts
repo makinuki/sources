@@ -38,7 +38,7 @@ const ERROR_CODES: ErrorCode[] = [
 const metadata: SourceMetadata = {
   id: "mangafire",
   name: "MangaFire",
-  version: "1.0.0",
+  version: "1.0.1",
   abiVersion: 1,
   lang: "multi",
   baseUrl: WEB,
