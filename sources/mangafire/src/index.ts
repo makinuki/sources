@@ -428,14 +428,49 @@ function stateMap(filters: Json, id: string): { include: string[]; exclude: stri
   return { include, exclude };
 }
 
-// A series locator is the identifier slug that follows the title prefix.
+// A series locator is accepted in every form the source has published for the
+// title identifier: the bare hid, the `/title/<hid>-<slug>` path the site and
+// current extension publish, the `/manga/<slug>.<hid>` path an older backup
+// records, or an absolute URL carrying either. Both path shapes end in the hid,
+// which is what the API is addressed with.
 function seriesLocator(input: string): string {
   const value = input.trim();
-  if (!value.startsWith("http")) return value.replace(/^\/?(title\/)?/, "").split("/")[0];
-  const segments = new URL(value).pathname.split("/").filter((segment) => segment.length > 0);
-  const index = segments.indexOf("title");
-  const raw = index >= 0 && index + 1 < segments.length ? segments[index + 1] : segments[segments.length - 1] ?? "";
-  return raw.includes(".") ? raw.slice(raw.lastIndexOf(".") + 1) : raw;
+  const path = value.startsWith("http") ? new URL(value).pathname : value.split(/[?#]/)[0];
+  const segments = path.split("/").filter((segment) => segment.length > 0);
+  const index = segments.findIndex((segment) => segment === "title" || segment === "manga");
+  const raw = index >= 0 && index + 1 < segments.length ? segments[index + 1] : segments[segments.length - 1];
+  const candidate = typeof raw === "string" ? raw : "";
+  if (candidate.includes(".")) return candidate.slice(candidate.lastIndexOf(".") + 1);
+  return candidate.split("-")[0];
+}
+
+// A chapter locator is accepted as the published `<kind>:<id>` form, as a bare
+// numeric id, or as the site path a backup records:
+// `<manga>/<id>-chapter-<n>-<lang>` for a chapter, `<manga>/volume/<id>` for a
+// volume. The numeric id is recovered from the last path segment.
+function chapterLocator(input: string): { segment: string; id: string } {
+  const value = input.trim();
+  const separator = value.indexOf(":");
+  if (separator > 0) {
+    const kind = value.slice(0, separator);
+    const id = value.slice(separator + 1);
+    if (!/^\d+$/.test(id)) {
+      throw new ScraperError("NOT_FOUND", "chapter locator carries no numeric id");
+    }
+    return { segment: kind === "v" || kind === "volume" ? "volumes" : "chapters", id };
+  }
+  const path = value.startsWith("http") ? new URL(value).pathname : value.split(/[?#]/)[0];
+  const segments = path.split("/").filter((segment) => segment.length > 0);
+  const volumeIndex = segments.lastIndexOf("volume");
+  if (volumeIndex >= 0 && volumeIndex + 1 < segments.length && /^\d+$/.test(segments[volumeIndex + 1])) {
+    return { segment: "volumes", id: segments[volumeIndex + 1] };
+  }
+  const last = segments.length > 0 ? segments[segments.length - 1] : "";
+  const id = last.includes("-") ? last.slice(0, last.indexOf("-")) : last;
+  if (!/^\d+$/.test(id)) {
+    throw new ScraperError("NOT_FOUND", "chapter locator carries no numeric id");
+  }
+  return { segment: "chapters", id };
 }
 
 function searchUrl(query: string, page: number, filters: Json, authorId: string | null): { path: string; params: Param[] } {
@@ -613,17 +648,7 @@ export function get_pages(): I32 {
   const input = JSON.parse(Host.inputString()) as string;
   Host.outputString(
     runExport(() => {
-      const locator = input.trim();
-      const separator = locator.indexOf(":");
-      if (separator <= 0) {
-        throw new ScraperError("NOT_FOUND", "chapter locator must be <kind>:<id>");
-      }
-      const kind = locator.slice(0, separator);
-      const id = locator.slice(separator + 1);
-      if (!/^\d+$/.test(id)) {
-        throw new ScraperError("NOT_FOUND", "chapter locator carries no numeric id");
-      }
-      const segment = kind === "v" ? "volumes" : "chapters";
+      const { segment, id } = chapterLocator(input);
       const body = apiGet(`/${segment}/${id}`, []);
       const pages = asArray(asRecord(body["data"])["pages"]);
       if (pages.length === 0) {
