@@ -67,6 +67,21 @@ function asArray(value: unknown, fallback: unknown[] = []): unknown[] {
   return Array.isArray(value) ? value : fallback;
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// A locator is accepted in every form the source has published for its
+// identifier: the bare id, the site path a backup records (`/manga/<id>` or
+// `/chapter/<id>`), or an absolute URL carrying either. The uuid is recovered
+// from the path so the API is always addressed with the id it expects.
+function identifierFrom(value: string): string {
+  const trimmed = value.trim();
+  const path = trimmed.startsWith("http") ? new URL(trimmed).pathname : trimmed.split(/[?#]/)[0];
+  const segments = path.split("/").filter((segment) => segment.length > 0);
+  const uuid = segments.find((segment) => UUID_PATTERN.test(segment));
+  if (typeof uuid === "string") return uuid;
+  return segments.length > 0 ? segments[segments.length - 1] : "";
+}
+
 function mapHttpStatus(status: number): ErrorCode {
   if (status === 401) return "SESSION_REQUIRED";
   if (status === 404) return "NOT_FOUND";
@@ -642,9 +657,13 @@ export function search(): I32 {
 }
 
 export function get_details(): I32 {
-  const mangaId = JSON.parse(Host.inputString()) as string;
+  const input = JSON.parse(Host.inputString()) as string;
   Host.outputString(
     runExport(() => {
+      const mangaId = identifierFrom(input);
+      if (mangaId.length === 0) {
+        throw new ScraperError("NOT_FOUND", "empty manga locator");
+      }
       const url = new URL(`${API}/manga/${mangaId}`);
       addParams(url, { "includes[]": ["cover_art", "author", "artist"] });
       const response = requestJson(url.toString());
@@ -657,9 +676,13 @@ export function get_details(): I32 {
 }
 
 export function get_pages(): I32 {
-  const chapterId = JSON.parse(Host.inputString()) as string;
+  const input = JSON.parse(Host.inputString()) as string;
   Host.outputString(
     runExport(() => {
+      const chapterId = identifierFrom(input);
+      if (chapterId.length === 0) {
+        throw new ScraperError("NOT_FOUND", "empty chapter locator");
+      }
       const response = requestJson(`${API}/at-home/server/${chapterId}`);
       const base = response["baseUrl"];
       const chapter = asRecord(response["chapter"]);

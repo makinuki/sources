@@ -7,6 +7,11 @@ Section 7).
 
 ## [Unreleased]
 
+- Accept a locator in every published form: the bare id, the `/manga/<id>`
+  and `/chapter/<id>` paths a backup records, or an absolute URL carrying
+  either. An imported title and its chapters resolve without a prior
+  refresh, and a differing declaration is reported as the id.
+
 ## [1.1.0] - 2026-08-23
 
 - Adopt contract 1.2.0 (`@makinuki/spec` 1.2.0, `@makinuki/pdk` 1.3.0).
