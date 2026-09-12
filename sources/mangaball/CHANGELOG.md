@@ -4,7 +4,7 @@ All notable changes to the mangaball source plugin are recorded here. The plugin
 version follows semver; contract-level changes follow the ABI versioning policy
 defined in the spec repository (SPECIFICATION.md, Section 7).
 
-## [Unreleased]
+## [1.0.1] - 2026-09-12
 
 - Raise the PDK floor to the release that handles the absent value a host
   returns for a void storage import.
