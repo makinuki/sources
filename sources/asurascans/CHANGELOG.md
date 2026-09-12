@@ -5,7 +5,7 @@ plugin version follows semver; contract-level changes follow the ABI
 versioning policy defined in the spec repository (SPECIFICATION.md,
 Section 7).
 
-## [Unreleased]
+## [1.1.4] - 2026-09-12
 
 - Accept the locators a backup records: `/series/<slug>` for a series and
   `/series/<slug>/chapter/<n>` for a chapter. The chapter id is the same

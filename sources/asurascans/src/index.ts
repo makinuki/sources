@@ -150,7 +150,7 @@ function findIsland(html: string, predicate: (props: RecordObject) => boolean): 
 const metadata: SourceMetadata = {
   id: "asurascans",
   name: "Asura Scans",
-  version: "1.1.3",
+  version: "1.1.4",
   abiVersion: 1,
   lang: "en",
   baseUrl: WEB,
