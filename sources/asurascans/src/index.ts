@@ -304,7 +304,7 @@ function asNumber(value: unknown): number | null {
 function createMangaItem(data: RecordObject): MangaItem {
   const slug = asString(data["slug"]);
   const item: MangaItem = {
-    id: slug,
+    id: seriesPath(slug),
     title: cleanText(asString(data["title"])) || "Untitled",
     url: `${WEB}${asString(data["public_url"])}`,
   };
@@ -369,6 +369,45 @@ function stableSeriesSlug(value: string): string {
   return value.replace(/-[a-z0-9]{8}$/, "");
 }
 
+// The series id the plugin publishes is the site path the source has always
+// addressed a title by, with the rotating suffix stripped. Recorded locators
+// and ids the plugin publishes therefore agree, and the fetch below translates
+// the path to the live site one.
+function seriesPath(value: string): string {
+  const slug = seriesSlug(value);
+  return slug.length > 0 ? `/series/${slug}` : "";
+}
+
+// Reduces any accepted series locator to the stable slug: a `/series/<slug>`
+// path, a `/comics/<slug>` path, an absolute site URL, a bare slug, or the
+// search id.
+function seriesSlug(value: string): string {
+  const trimmed = value.trim();
+  const path = trimmed.startsWith("http") ? new URL(trimmed).pathname : trimmed;
+  const segments = path.split("/").filter((segment) => segment.length > 0);
+  const index = segments.findIndex((segment) => segment === "series" || segment === "comics");
+  const last = index >= 0 && index + 1 < segments.length ? segments[index + 1] : segments[segments.length - 1];
+  return stableSeriesSlug(typeof last === "string" ? last : "");
+}
+
+// The chapter id the plugin publishes is the stable site path
+// `/series/<slug>/chapter/<n>`, which is what a recorded locator holds. The
+// live site serves the same chapter under `/comics/<slug>/chapter/<n>` and
+// redirects a stable slug to the rotating one, so the published path is
+// translated here instead of fetched as written.
+function chapterFetchUrl(value: string): string {
+  const trimmed = value.trim();
+  const path = trimmed.startsWith("http") ? new URL(trimmed).pathname : trimmed.split(/[?#]/)[0];
+  const segments = path.split("/").filter((segment) => segment.length > 0);
+  const index = segments.lastIndexOf("chapter");
+  const number = index >= 0 ? segments[index + 1] : undefined;
+  const slug = seriesSlug(trimmed);
+  if (slug.length === 0 || typeof number !== "string" || number.length === 0) {
+    throw new ScraperError("NOT_FOUND", "chapter locator must name a series and a chapter");
+  }
+  return `${WEB}/comics/${slug}/chapter/${number}`;
+}
+
 function createChapterItem(data: RecordObject, fallbackSlug: string): ChapterItem | null {
   const number = chapterNumber(data["number"]);
   if (number === null) return null;
@@ -377,7 +416,7 @@ function createChapterItem(data: RecordObject, fallbackSlug: string): ChapterIte
   const seriesSlug = stableSeriesSlug(asString(data["series_slug"])) || stableSeriesSlug(fallbackSlug);
   const chapterUrl = `${WEB}/comics/${seriesSlug}/chapter/${numberStr}`;
   const item: ChapterItem = {
-    id: chapterUrl,
+    id: `/series/${seriesSlug}/chapter/${numberStr}`,
     number,
     title: `Chapter ${numberStr}`,
     url: chapterUrl,
@@ -459,18 +498,22 @@ export function search(): I32 {
 }
 
 export function get_details(): I32 {
-  const slug = JSON.parse(Host.inputString()) as string;
+  const input = JSON.parse(Host.inputString()) as string;
   Host.outputString(
     runExport(() => {
+      const slug = seriesSlug(input);
+      if (slug.length === 0) {
+        throw new ScraperError("NOT_FOUND", "empty series locator");
+      }
       const html = requestHtml(`${WEB}/comics/${slug}`);
       const metaIsland = findIsland(
         html,
         (props) => typeof props["title"] !== "undefined" && typeof props["description"] !== "undefined",
       );
       const chaptersIsland = findIsland(html, (props) => props["chapters"] !== undefined && props["publicUrl"] !== undefined);
-      const details = createMangaDetails(metaIsland, slug);
+      const details = createMangaDetails(metaIsland, seriesPath(slug));
       details.chapters = asArray(chaptersIsland["chapters"])
-        .map((entry) => createChapterItem(asRecord(entry), details.id))
+        .map((entry) => createChapterItem(asRecord(entry), slug))
         .filter((chapter): chapter is ChapterItem => chapter !== null);
       return details;
     }),
@@ -479,10 +522,10 @@ export function get_details(): I32 {
 }
 
 export function get_pages(): I32 {
-  const chapterUrl = JSON.parse(Host.inputString()) as string;
+  const input = JSON.parse(Host.inputString()) as string;
   Host.outputString(
     runExport(() => {
-      const html = requestHtml(chapterUrl);
+      const html = requestHtml(chapterFetchUrl(input));
       const island = findIsland(html, (props) => props["pages"] !== undefined);
       const pages = asArray(island["pages"]).map((entry, index): PageItem => {
         const page = asRecord(entry);

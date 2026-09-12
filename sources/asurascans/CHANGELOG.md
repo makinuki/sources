@@ -5,6 +5,14 @@ plugin version follows semver; contract-level changes follow the ABI
 versioning policy defined in the spec repository (SPECIFICATION.md,
 Section 7).
 
+## [Unreleased]
+
+- Accept the locators a backup records: `/series/<slug>` for a series and
+  `/series/<slug>/chapter/<n>` for a chapter. The chapter id is the same
+  stable path, so an imported chapter pairs with the chapter a refresh lists
+  instead of appearing beside it as a second row, and a read resolves with
+  the recorded value.
+
 ## [1.1.3] - 2026-09-11
 
 - Declare the site's current logo as the source icon. The previous favicon
