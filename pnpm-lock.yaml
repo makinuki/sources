@@ -63,8 +63,8 @@ importers:
   sources/mangaball:
     dependencies:
       '@makinuki/pdk':
-        specifier: ^1.3.0
-        version: 1.3.0
+        specifier: ^1.3.1
+        version: 1.3.1
 
   sources/mangadex:
     dependencies:
@@ -265,6 +265,11 @@ packages:
 
   '@makinuki/pdk@1.3.0':
     resolution: {integrity: sha512-nvgZ6sKyBiV4wF0M0aTm6f1PmsdRkaf4w1FWKvc6sBngXR/jwFAQdJoUJ2ieUxEk5yt05sD853nkBU9M3vrhfg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  '@makinuki/pdk@1.3.1':
+    resolution: {integrity: sha512-FZzaxCsucBT/+YpKaBt2x05xs1PbeDWQsUU9N7/oLyiA586PSSL5y8UH5YE6JTrjh57Uhe7uuYkOPMJKc+A75Q==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -594,6 +599,11 @@ snapshots:
   '@extism/extism@2.0.0-rc13': {}
 
   '@makinuki/pdk@1.3.0':
+    dependencies:
+      cheerio: 1.2.0
+      esbuild: 0.28.2
+
+  '@makinuki/pdk@1.3.1':
     dependencies:
       cheerio: 1.2.0
       esbuild: 0.28.2
