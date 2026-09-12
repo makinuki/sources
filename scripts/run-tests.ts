@@ -273,9 +273,18 @@ async function runSource(source: string): Promise<boolean> {
       fail("get_details", schemaErrors(v));
       return false;
     }
+    // A source may normalize a legacy locator to the identity it publishes, so
+    // a differing id is accepted only when the reported id resolves back to the
+    // same title.
     if (details.id !== candidate) {
-      fail("get_details", `id mismatch: requested ${candidate}, got ${details.id}`);
-      return false;
+      const roundTrip = JSON.parse((await plugin.call("get_details", JSON.stringify(details.id))).text()) as {
+        ok: boolean;
+        data?: { id?: string; title?: string };
+      };
+      if (!roundTrip.ok || roundTrip.data?.title !== details.title) {
+        fail("get_details", `id normalization unresolved: requested ${candidate}, got ${details.id}`);
+        return false;
+      }
     }
     const dup = requireUnique(details.chapters.map((c) => String(c.id ?? "")), "chapters");
     if (dup) {
