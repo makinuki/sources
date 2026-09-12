@@ -5,7 +5,7 @@ plugin version follows semver; contract-level changes follow the ABI
 versioning policy defined in the spec repository (SPECIFICATION.md,
 Section 7).
 
-## [Unreleased]
+## [1.1.1] - 2026-09-12
 
 - Accept a locator in every published form: the bare id, the `/manga/<id>`
   and `/chapter/<id>` paths a backup records, or an absolute URL carrying
