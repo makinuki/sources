@@ -120,10 +120,10 @@ else
 fi
 
 # Release discipline per plugin. The script performs the version bump, so
-# the guards only reject pointless releases (no source change and an
-# unchanged version since the previous release tag) and versions that
-# would collide with or undercut an existing release tag. --tags keeps
-# lightweight tags visible to the guard as well.
+# the guards only reject pointless releases (no source or manifest change
+# and an unchanged version since the previous release tag) and versions
+# that would collide with or undercut an existing release tag. --tags
+# keeps lightweight tags visible to the guard as well.
 prev_tag="$(git describe --abbrev=0 --tags --match "$id-v*" 2>/dev/null || true)"
 
 if version_gt "$next" "$version"; then
@@ -135,9 +135,12 @@ else
 fi
 if [ -n "$prev_tag" ]; then
     tagged_version="$(git show "$prev_tag:$src" | read_plugin_version -)"
-    if [ -z "$(git diff --name-only "$prev_tag" -- "$plugin_dir/src")" ] &&
+    # The built artifact embeds the workspace dependency graph, so a changed
+    # manifest, such as a raised dependency floor, is itself a release-worthy
+    # change even when the plugin sources are untouched.
+    if [ -z "$(git diff --name-only "$prev_tag" -- "$plugin_dir/src" "$plugin_dir/package.json")" ] &&
         [ "$version" = "$tagged_version" ]; then
-        fail "no changes under $plugin_dir/src since $prev_tag; nothing to release"
+        fail "no changes under $plugin_dir since $prev_tag; nothing to release"
     fi
 fi
 for tag in $(git tag -l "$id-v*"); do
