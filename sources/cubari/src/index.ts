@@ -416,17 +416,22 @@ export function get_pages(): I32 {
         .replace(/^\/+/, "")
         .split("/")
         .filter((segment) => segment.length > 0);
-      if (segments.length < 4) {
+      // A recorded locator carries the site read prefix, which names neither a
+      // source nor a slug. Dropping it leaves the pair the series locator
+      // resolves, so a recorded chapter reads exactly as published.
+      const index = segments.indexOf("read");
+      const parts = index >= 0 ? segments.slice(index + 1) : segments;
+      if (parts.length < 4) {
         throw new ScraperError("NOT_FOUND", "chapter locator must carry a series and a chapter");
       }
-      const locator = { source: segments[0], slug: segments[1] };
+      const locator = { source: parts[0], slug: parts[1] };
       const series = getJson(seriesUrl(locator));
       const chapters = asRecord(series["chapters"]);
-      const chapter = asRecord(chapters[normalizeChapterKey(segments[2])]);
+      const chapter = asRecord(chapters[normalizeChapterKey(parts[2])]);
       const groups = asRecord(chapter["groups"]);
-      const entry = groups[segments[3]];
+      const entry = groups[parts[3]];
       if (entry === undefined) {
-        throw new ScraperError("NOT_FOUND", `no pages for chapter ${segments[2]}`);
+        throw new ScraperError("NOT_FOUND", `no pages for chapter ${parts[2]}`);
       }
       if (Array.isArray(entry)) {
         return pagesFromPayload(entry);
