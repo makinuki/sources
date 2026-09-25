@@ -10,12 +10,25 @@ contract, defined in [makinuki/spec](https://github.com/makinuki/spec).
 ```
 sources/
 ├── sources/
+│   ├── asurascans/     # Asura Scans (JSON API + HTML)
+│   ├── atsumaru/       # Atsumaru (JSON API)
+│   ├── batcave/        # BatCave (HTML scraping)
+│   ├── cubari/         # Cubari (reader for user-curated lists)
+│   ├── kagane/         # Kagane (JSON API)
+│   ├── mangaball/      # Manga Ball (JSON API)
 │   ├── mangadex/       # MangaDex (REST API based)
-│   └── asurascans/     # Asura Scans (HTML scraping)
+│   ├── mangadotnet/    # Mangadotnet (JSON API)
+│   ├── mangafire/      # MangaFire (signed JSON API)
+│   ├── mangakakalot/   # MangaKakalot (JSON API + HTML)
+│   ├── omegascans/     # Omega Scans (JSON API)
+│   └── weebcentral/    # Weeb Central (HTML scraping)
 ├── scripts/
-│   ├── build.ts        # batch compiler: sources/* -> dist/*.wasm
-│   └── release.sh      # cuts and tags a release for one source
-└── dist/               # compiled .wasm outputs (gitignored)
+│   ├── build.ts          # batch compiler: sources/* -> dist/*.wasm
+│   ├── run-tests.ts      # conformance runner: schemas + live endpoints
+│   ├── generate-index.ts # registry builder: dist/*.wasm -> dist/index.json
+│   ├── lib/host.ts       # shared WASM host (fetch, storage, log)
+│   └── release.sh        # cuts and tags a release for one source
+└── dist/                 # compiled .wasm outputs (gitignored)
 ```
 
 ## Prerequisites
@@ -40,6 +53,23 @@ TypeScript compiler over the scripts and all source packages.
 asserting payloads against the schemas and exercising live endpoints.
 Pass one or more plugin ids to scope it, e.g. `pnpm test mangadex`. The
 runner talks to real source websites, so network access is required.
+
+Beyond schema validation the runner asserts the contract rules hosts rely
+on: every URL it inspects (search item, chapter, and page URLs) must be an
+absolute http(s) URI; page indexes must be sequential from zero; and a page
+marked scrambled must carry descramble metadata. The runner also proves the
+page-schema contract itself before any plugin runs, so a schema regression
+fails fast. When a plugin exports the optional `get_settings`, the runner
+validates the payload against the settings schema, requires unique setting
+ids and a text-shaped `base_url` setting, and proves the storage wiring
+settings persist through with a round-trip write. The pass line reports
+which optional exports (`get_settings`, `unscramble_image`) a plugin
+carries; plugins without settings still pass.
+
+A source may declare `rateLimit`/`retry` transfer hints in its metadata.
+These are host guidance, not requirements: hosts may honor, cap, or let
+users override them. `pnpm generate-index` carries whatever a plugin
+declares into the registry entries in `dist/index.json`.
 
 A source can pin the locators the run exercises, or declare that it cannot
 be reached without a browser, in `sources/<id>/test.json`:
@@ -75,7 +105,8 @@ MAKINUKI_TEST_COOKIE="cf_clearance=<value>" \
 The JSON Schemas live in the spec repository and are consumed through the
 linked `@makinuki/spec` package, e.g. `@makinuki/spec/schemas/metadata.schema.json`.
 The spec repo is the single source of truth; there are no copies in this
-repository. The conformance test runner asserts plugin output against them.
+repository. The conformance test runner asserts plugin output against them,
+including the settings schema for plugins that export `get_settings`.
 
 ## Releasing a source
 

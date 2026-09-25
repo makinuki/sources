@@ -65,6 +65,14 @@ async function main(): Promise<void> {
     if (Array.isArray(metadata.allowedHosts) && metadata.allowedHosts.length > 0) {
       entry.allowedHosts = metadata.allowedHosts;
     }
+    // Transfer hints are host guidance, not requirements; the registry carries
+    // whatever the plugin declares and the index schema validates the shape.
+    if (metadata.rateLimit !== undefined) {
+      entry.rateLimit = metadata.rateLimit;
+    }
+    if (metadata.retry !== undefined) {
+      entry.retry = metadata.retry;
+    }
     sources.push(entry);
     console.log(`indexed ${id} v${version} ${sha256.slice(0, 12)}...`);
   }

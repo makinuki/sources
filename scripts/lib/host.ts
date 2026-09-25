@@ -17,6 +17,26 @@ export const WASM_EXPORTS = ["get_metadata", "get_filters", "search", "get_detai
 
 const store = new Map<string, string>();
 
+function storageGetValue(key: string): string | undefined {
+  return store.get(key);
+}
+
+function storageSetValue(key: string, value: string): void {
+  if (Buffer.byteLength(value, "utf8") > 64 * 1024) throw new Error("storage value exceeds 64 KB cap");
+  store.set(key, value);
+}
+
+// Exercises the same get/set path the makinuki_storage_* host functions use,
+// so the runner can prove the persistence wiring a settings value travels.
+// A plugin reading back what the host wrote is covered once a source plugin
+// declares settings; until then this guards the shared layer.
+export function storageRoundTrip(key: string, value: string): boolean {
+  storageSetValue(key, value);
+  const readBack = storageGetValue(key);
+  store.delete(key);
+  return readBack === value;
+}
+
 // Cookies are part of the environment a browser-shaped source expects. The
 // runner keeps its own jar so a session established by one request reaches
 // the next, exactly as the plugin runtime does.
@@ -104,13 +124,12 @@ const hostFunctions = {
     },
     makinuki_storage_get: (ctx: { read(p: number): { string(): string }; store(v: string): bigint }, ptr: number) => {
       const key = JSON.parse(ctx.read(ptr).string()) as string;
-      const value = store.get(key);
+      const value = storageGetValue(key);
       return value === undefined ? 0n : ctx.store(value);
     },
     makinuki_storage_set: (ctx: { read(p: number): { string(): string } }, ptr: number) => {
       const entry = JSON.parse(ctx.read(ptr).string()) as { key: string; value: string };
-      if (Buffer.byteLength(entry.value, "utf8") > 64 * 1024) throw new Error("storage value exceeds 64 KB cap");
-      store.set(entry.key, entry.value);
+      storageSetValue(entry.key, entry.value);
       return 0n;
     },
     makinuki_log: (ctx: { read(p: number): { string(): string } }, ptr: number) => {

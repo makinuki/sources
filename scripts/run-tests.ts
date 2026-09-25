@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv, { type ValidateFunction } from "ajv";
 import addFormats from "ajv-formats";
-import { checkExports, loadPlugin, UA, WASM_EXPORTS } from "./lib/host.ts";
+import { checkExports, loadPlugin, storageRoundTrip, UA, WASM_EXPORTS } from "./lib/host.ts";
 
 const require = createRequire(import.meta.url);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -109,6 +109,10 @@ function gatedSkip(name: string, envErr: string, result: { ok: boolean; error?: 
   return true;
 }
 
+// Optional ABI exports beyond the five required ones. get_settings carries
+// source settings; unscramble_image descrambles protected page images.
+const OPTIONAL_EXPORTS = ["get_settings", "unscramble_image"] as const;
+
 function requireUnique(ids: Array<string | undefined>, what: string): string | null {
   const seen = new Set<string>();
   for (const id of ids) {
@@ -117,6 +121,48 @@ function requireUnique(ids: Array<string | undefined>, what: string): string | n
     seen.add(id);
   }
   return null;
+}
+
+// Every URL field in a dynamic-export payload must be an absolute http(s)
+// URI; relative values only ever surface at runtime, so the runner polices
+// each URL it already inspects.
+function isAbsoluteHttpUrl(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function requireAbsoluteUrls(items: Array<Record<string, unknown>>, what: string): string | null {
+  for (const item of items) {
+    if (!isAbsoluteHttpUrl(item.url)) {
+      return `${what} id=${String(item.id ?? "?")} has non-absolute url ${JSON.stringify(item.url ?? null)}`;
+    }
+  }
+  return null;
+}
+
+// The page schema requires metadata whenever isScrambled is true. Proves the
+// contract holds before any plugin runs, so a schema regression fails fast
+// instead of surfacing as a passing plugin with unscannable pages.
+function assertScrambleContract(): void {
+  const v = validate("page.schema.json");
+  const bare: Record<string, unknown> = { index: 0, url: "https://example.invalid/0.jpg", isScrambled: true };
+  if (v({ ...bare })) {
+    console.error("FAIL schema-contract: scrambled page without metadata passed validation");
+    process.exit(1);
+  }
+  const described: Record<string, unknown> = {
+    ...bare,
+    metadata: { layout: "slice", rows: 2, cols: 2, tileW: 100, tileH: 100, order: [0, 1, 2, 3] },
+  };
+  if (!v(described)) {
+    console.error(`FAIL schema-contract: scrambled page with metadata rejected (${schemaErrors(v)})`);
+    process.exit(1);
+  }
 }
 
 async function runSource(source: string): Promise<boolean> {
@@ -138,7 +184,10 @@ async function runSource(source: string): Promise<boolean> {
     fail("exports", `missing ${missing.join(", ")}`);
     return false;
   }
-  pass("exports", WASM_EXPORTS.join(" "));
+  // Only ABI-level optional exports are reported; the module also carries
+  // runtime shims (memory, extism host bindings) that are not plugin API.
+  const optional = OPTIONAL_EXPORTS.filter((name) => exports.includes(name));
+  pass("exports", WASM_EXPORTS.join(" ") + (optional.length > 0 ? ` (+${optional.join(",")})` : ""));
 
   const plugin = await loadPlugin(wasmPath);
 
@@ -173,6 +222,47 @@ async function runSource(source: string): Promise<boolean> {
     const counts: Record<string, number> = {};
     for (const f of filters) counts[String(f.type)] = (counts[String(f.type)] ?? 0) + 1;
     pass("get_filters", `${filters.length} (${Object.entries(counts).map(([t, n]) => `${t}x${n}`).join(", ")})`);
+  }
+
+  // get_settings is optional; a plugin without it still passes. When present
+  // the payload is raw JSON (no envelope) and must satisfy the settings
+  // schema, carry unique ids, and declare base_url as a text setting.
+  if (exports.includes("get_settings")) {
+    const settingsRaw = (await plugin.call("get_settings", "")).text();
+    let settings: unknown;
+    try {
+      settings = JSON.parse(settingsRaw);
+    } catch {
+      fail("get_settings", "payload is not valid JSON");
+      return false;
+    }
+    const v = validate("settings.schema.json");
+    if (!v(settings)) {
+      fail("get_settings", schemaErrors(v));
+      return false;
+    }
+    const list = settings as Array<Record<string, unknown>>;
+    const dup = requireUnique(list.map((s) => String(s.id ?? "")), "settings");
+    if (dup) {
+      fail("get_settings", dup);
+      return false;
+    }
+    const baseUrl = list.find((s) => s.id === "base_url");
+    if (baseUrl && baseUrl.type !== "text") {
+      fail("get_settings", `base_url must be a text setting, got ${String(baseUrl.type)}`);
+      return false;
+    }
+    if (!storageRoundTrip("__conformance_probe__", "ok")) {
+      fail("get_settings", "storage round-trip failed (settings persist through plugin storage)");
+      return false;
+    }
+    const kinds: Record<string, number> = {};
+    for (const s of list) kinds[String(s.type)] = (kinds[String(s.type)] ?? 0) + 1;
+    pass(
+      "get_settings",
+      `${list.length} (${Object.entries(kinds).map(([t, n]) => `${t}x${n}`).join(", ")})` +
+        (baseUrl ? " base_url=text" : "")
+    );
   }
 
   // A source whose search maps direct links instead of a server-side
@@ -222,6 +312,11 @@ async function runSource(source: string): Promise<boolean> {
     const dup = requireUnique(items.map((i) => String(i.id ?? "")), "search items");
     if (dup) {
       fail("search", dup);
+      return false;
+    }
+    const relative = requireAbsoluteUrls(items, "search items");
+    if (relative) {
+      fail("search", relative);
       return false;
     }
     if (opts.expect && !items.some((i) => i.id === opts.expect)) {
@@ -291,6 +386,11 @@ async function runSource(source: string): Promise<boolean> {
       fail("get_details", dup);
       return false;
     }
+    const relative = requireAbsoluteUrls(details.chapters, "chapters");
+    if (relative) {
+      fail("get_details", relative);
+      return false;
+    }
     probed++;
     chapters = details.chapters;
     detailsId = candidate;
@@ -347,6 +447,11 @@ async function runSource(source: string): Promise<boolean> {
         }
       }
     }
+    const relative = requireAbsoluteUrls(pages as unknown as Array<Record<string, unknown>>, "pages");
+    if (relative) {
+      fail("get_pages", relative);
+      return false;
+    }
     const scrambled = pages.filter((p) => p.isScrambled).length;
     pass("get_pages", `${pagesId} pages=${pages.length} scrambled=${scrambled}`);
   }
@@ -355,6 +460,7 @@ async function runSource(source: string): Promise<boolean> {
 }
 
 (async () => {
+  assertScrambleContract();
   let allOk = true;
   let gated = 0;
   for (const target of targets) {
