@@ -4,7 +4,7 @@ All notable changes to the mangafire source plugin are recorded here. The plugin
 version follows semver; contract-level changes follow the ABI versioning policy
 defined in the spec repository (SPECIFICATION.md, Section 7).
 
-## [Unreleased]
+## [1.1.1] - 2026-09-26
 
 - Attach the chapter page URL to every chapter entry, so a host can open
   the chapter on the site.
