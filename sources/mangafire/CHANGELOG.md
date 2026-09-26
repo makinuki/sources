@@ -4,7 +4,7 @@ All notable changes to the mangafire source plugin are recorded here. The plugin
 version follows semver; contract-level changes follow the ABI versioning policy
 defined in the spec repository (SPECIFICATION.md, Section 7).
 
-## [Unreleased]
+## [1.1.0] - 2026-09-26
 
 - Emit every chapter language: the chapter list no longer asks for English
   only and each chapter carries the language the payload reports.
