@@ -5,6 +5,7 @@ import {
   fail,
   fetch,
   ok,
+  storageGet,
   type ChapterItem,
   type ErrorCode,
   type FilterSchema,
@@ -13,6 +14,7 @@ import {
   type PageItem,
   type PageResult,
   type SearchQuery,
+  type SettingSchema,
   type SourceMetadata,
 } from "@makinuki/pdk";
 import { MakiNukiHttpError } from "@makinuki/pdk";
@@ -44,8 +46,43 @@ const metadata: SourceMetadata = {
   baseUrl: WEB,
   iconUrl: `${WEB}/assets/mangafire/favicon.svg`,
   nsfw: false,
-  allowedHosts: ["mangafire.to", "mfcdn.nl", "static.mfcdn.nl", "cdn.mfcdn.nl"],
+  allowedHosts: [
+    "mangafire.to",
+    "mfcdn.nl",
+    "static.mfcdn.nl",
+    "cdn.mfcdn.nl",
+    "mfcdn1.xyz",
+    "mfcdn2.xyz",
+    "mfcdn3.xyz",
+  ],
 };
+
+const SETTINGS: SettingSchema[] = [
+  {
+    id: "base_url",
+    title: "Site address",
+    description:
+      "Custom site origin. The cover and page image hosts are separate origins and are unaffected by the override. Empty means the built-in address.",
+    type: "text",
+    placeholder: WEB,
+    default: WEB,
+  },
+];
+
+// A missing key means the built-in origin; an unparsable value falls back to
+// it so a bad saved value cannot break every request.
+function siteBase(): string {
+  const override = storageGet("base_url");
+  if (override && override.length > 0) {
+    try {
+      const url = new URL(override);
+      if (url.protocol === "http:" || url.protocol === "https:") return url.origin;
+    } catch {
+      // fall through to the built-in origin
+    }
+  }
+  return WEB;
+}
 
 const STATUSES = [
   { label: "Releasing", value: "releasing" },
@@ -362,7 +399,7 @@ function apiGet(path: string, params: Param[]): Json {
   const signature = signEnvironment(canonical.length > 0 ? `${path}?${canonical}` : path);
   const query = sorted.map(([key, value]) => `${key}=${encodeURIComponent(value)}`);
   query.push(`vrf=${signature}`);
-  const url = `${WEB}/api${path}?${query.join("&")}`;
+  const url = `${siteBase()}/api${path}?${query.join("&")}`;
   const response = fetch({ url, method: "GET", headers: { Accept: "application/json" } });
   if (response.status < 200 || response.status >= 300) {
     throw new ScraperError(mapHttpStatus(response.status), `HTTP ${response.status}`);
@@ -521,6 +558,11 @@ export function get_filters(): I32 {
   return 0;
 }
 
+export function get_settings(): I32 {
+  Host.outputString(JSON.stringify(SETTINGS));
+  return 0;
+}
+
 export function search(): I32 {
   const input = JSON.parse(Host.inputString()) as SearchQuery;
   const page = typeof input.page === "number" && input.page >= 1 ? input.page : 1;
@@ -556,7 +598,7 @@ export function search(): I32 {
         const hid = asString(record["hid"]);
         const title = cleanText(asString(record["title"]));
         if (hid.length === 0 || title.length === 0) continue;
-        const item: MangaItem = { id: hid, title, url: `${WEB}/title/${hid}` };
+        const item: MangaItem = { id: hid, title, url: `${siteBase()}/title/${hid}` };
         const cover = posterOf(record);
         if (cover) item.coverUrl = cover;
         items.push(item);
@@ -601,11 +643,18 @@ export function get_details(): I32 {
         .map((entry) => cleanText(asString(asRecord(entry)["title"])))
         .filter((entry) => entry.length > 0);
       if (artists.length > 0) details.artists = artists;
-      const genres = [
-        ...asArray(data["genres"]).map((entry) => cleanText(asString(asRecord(entry)["title"]))),
-        ...asArray(data["themes"]).map((entry) => cleanText(asString(asRecord(entry)["title"]))),
-      ].filter((entry) => entry.length > 0);
+      // The title payload carries three axes: genres, themes and demographics.
+      // The genre axis stays in genres; the themes axis and the demographics
+      // set move to tags.
+      const genres = asArray(data["genres"])
+        .map((entry) => cleanText(asString(asRecord(entry)["title"])))
+        .filter((entry) => entry.length > 0);
       if (genres.length > 0) details.genres = genres;
+      const tags = [
+        ...asArray(data["themes"]).map((entry) => cleanText(asString(asRecord(entry)["title"]))),
+        ...asArray(data["demographics"]).map((entry) => cleanText(asString(asRecord(entry)["title"]))),
+      ].filter((entry) => entry.length > 0);
+      if (tags.length > 0) details.tags = tags;
 
       const hid = details.id;
       const collected: ChapterItem[] = [];
@@ -613,7 +662,6 @@ export function get_details(): I32 {
       let lastPage = 1;
       do {
         const chapterBody = apiGet(`/titles/${encodeURIComponent(hid)}/chapters`, [
-          ["language", "en"],
           ["sort", "number"],
           ["order", "desc"],
           ["page", String(chapterPage)],
@@ -625,7 +673,9 @@ export function get_details(): I32 {
           const number = asNumber(record["number"]);
           if (id === null) continue;
           const name = cleanText(asString(record["name"]));
-          const item: ChapterItem = { id: `c:${id}`, number, language: "en" };
+          const item: ChapterItem = { id: `c:${id}`, number };
+          const language = asString(record["language"]);
+          if (language.length > 0) item.language = language;
           if (name.length > 0) item.title = name;
           const scanlator = asString(record["type"]);
           item.scanlator = scanlator.length > 0 ? scanlator : "Unknown";
@@ -654,12 +704,14 @@ export function get_pages(): I32 {
       if (pages.length === 0) {
         throw new ScraperError("PARSING_ERROR", "chapter carries no pages");
       }
+      // The page image hosts answer 403 to any request without a site
+      // referer, so every page carries one.
       return pages.map((entry, index): PageItem => {
         const url = asString(asRecord(entry)["url"]);
         if (url.length === 0) {
           throw new ScraperError("PARSING_ERROR", "chapter page missing an image source");
         }
-        return { index, url, isScrambled: false };
+        return { index, url, isScrambled: false, headers: { Referer: `${WEB}/` } };
       });
     }),
   );
