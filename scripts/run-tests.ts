@@ -138,6 +138,9 @@ function isAbsoluteHttpUrl(value: unknown): value is string {
 
 function requireAbsoluteUrls(items: Array<Record<string, unknown>>, what: string): string | null {
   for (const item of items) {
+    // url is optional in the manga and chapter schemas, so only a field
+    // that is present must be absolute.
+    if (item.url === undefined) continue;
     if (!isAbsoluteHttpUrl(item.url)) {
       return `${what} id=${String(item.id ?? "?")} has non-absolute url ${JSON.stringify(item.url ?? null)}`;
     }
