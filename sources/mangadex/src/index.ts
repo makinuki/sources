@@ -187,7 +187,7 @@ function relationship(record: RecordObject, type: string): RecordObject {
 const metadata: SourceMetadata = {
   id: "mangadex",
   name: "MangaDex",
-  version: "1.1.1",
+  version: "1.2.0",
   abiVersion: 1,
   lang: "multi",
   baseUrl: WEB,

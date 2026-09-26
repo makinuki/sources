@@ -5,7 +5,7 @@ plugin version follows semver; contract-level changes follow the ABI
 versioning policy defined in the spec repository (SPECIFICATION.md,
 Section 7).
 
-## [Unreleased]
+## [1.2.0] - 2026-09-26
 
 - Split details tags by catalogue group: the genre group stays in genres,
   theme, format, and content move to tags.
