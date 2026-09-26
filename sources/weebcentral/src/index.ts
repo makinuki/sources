@@ -8,6 +8,7 @@ import {
   parseChapterNumber,
   parseHTML,
   resolveUrl,
+  storageGet,
   type ChapterItem,
   type ErrorCode,
   type FilterSchema,
@@ -16,6 +17,7 @@ import {
   type PageItem,
   type PageResult,
   type SearchQuery,
+  type SettingSchema,
   type SourceMetadata,
 } from "@makinuki/pdk";
 import { MakiNukiHttpError } from "@makinuki/pdk";
@@ -45,8 +47,44 @@ const metadata: SourceMetadata = {
   baseUrl: WEB,
   iconUrl: `${WEB}/static/images/brand.png`,
   nsfw: false,
-  allowedHosts: ["weebcentral.com", "temp.compsci88.com", "hot.planeptune.us", "compsci88.com"],
+  // Page images are served from one of two hosts chosen by the chapter's
+  // scanlator: fan scans from the planeptune host and official translations
+  // from the lowee host. Neither apex resolves, so both are listed by their
+  // exact names. The cover host is the compsci88 host, which resolves only
+  // under its temp label.
+  allowedHosts: [
+    "weebcentral.com",
+    "temp.compsci88.com",
+    "scans-hot.planeptune.us",
+    "official.lowee.us",
+  ],
 };
+
+const SETTINGS: SettingSchema[] = [
+  {
+    id: "base_url",
+    title: "Site address",
+    description: "Custom site origin. Empty means the built-in address.",
+    type: "text",
+    placeholder: WEB,
+    default: WEB,
+  },
+];
+
+// A missing key means the built-in origin; an unparsable value falls back to
+// it so a bad saved value cannot break every request.
+function siteBase(): string {
+  const override = storageGet("base_url");
+  if (override && override.length > 0) {
+    try {
+      const url = new URL(override);
+      if (url.protocol === "http:" || url.protocol === "https:") return url.origin;
+    } catch {
+      // fall through to the built-in origin
+    }
+  }
+  return WEB;
+}
 
 const STATUSES = ["Ongoing", "Complete", "Hiatus", "Canceled"];
 const TYPES = ["Manga", "Manhwa", "Manhua", "OEL"];
@@ -149,7 +187,13 @@ const FILTERS: FilterSchema[] = [
     ],
     default: "Any",
   },
-  { id: "author", title: "Author", type: "text", placeholder: "Case sensitive", default: "" },
+  {
+    id: "author",
+    title: "Author",
+    type: "text",
+    placeholder: "Case sensitive",
+    default: "",
+  },
   {
     id: "status",
     title: "Series status",
@@ -278,7 +322,7 @@ function statusOf(value: string): MangaDetails["status"] {
 }
 
 function searchUrl(query: string, page: number, filters: RecordObject): string {
-  const url = new URL(`${WEB}/search/data`);
+  const url = new URL(`${siteBase()}/search/data`);
   url.searchParams.set("text", query.replace(/[!#:(),-]/g, " ").trim());
   url.searchParams.set("sort", asString(filters["sort"]) || "Best Match");
   url.searchParams.set("order", asString(filters["order"]) || "Descending");
@@ -313,6 +357,11 @@ export function get_filters(): I32 {
   return 0;
 }
 
+export function get_settings(): I32 {
+  Host.outputString(JSON.stringify(SETTINGS));
+  return 0;
+}
+
 export function search(): I32 {
   const input = JSON.parse(Host.inputString()) as SearchQuery;
   const page = typeof input.page === "number" && input.page >= 1 ? input.page : 1;
@@ -328,7 +377,7 @@ export function search(): I32 {
         const item: MangaItem = {
           id: seriesLocator(href),
           title,
-          url: href.startsWith("http") ? href : resolveUrl(WEB, href),
+          url: href.startsWith("http") ? href : resolveUrl(siteBase(), href),
         };
         const cover = coverFrom(anchor);
         if (cover) item.coverUrl = cover;
@@ -353,7 +402,7 @@ export function get_details(): I32 {
       if (locator.length === 0) {
         throw new ScraperError("NOT_FOUND", "empty series locator");
       }
-      const $ = parseHTML(request(`${WEB}/series/${locator}`));
+      const $ = parseHTML(request(`${siteBase()}/series/${locator}`));
       const sections = $("section[x-data] > section");
       const head = sections.eq(0);
       const body = sections.eq(1);
@@ -377,11 +426,14 @@ export function get_details(): I32 {
         .get()
         .filter((name) => name.length > 0);
       if (authors.length > 0) details.authors = authors;
+      // The page lists its tag axis and its medium in sibling rows. The medium
+      // is a format classification rather than a genre, so only the tag row
+      // feeds the genre list.
       const genres = head
-        .find("ul > li:has(strong:contains(Tag), strong:contains(Type)) a")
+        .find("ul > li:has(strong:contains(Tag)) a")
         .map((_, element) => cleanText($(element).text()))
         .get()
-        .filter((name) => name.length > 0);
+        .filter((name) => name.length > 0 && !TYPES.includes(name));
       if (genres.length > 0) details.genres = genres;
       const altTitles = body
         .find("li:has(strong:contains(Associated Name)) li")
@@ -393,7 +445,9 @@ export function get_details(): I32 {
       if (cover) details.coverUrl = cover;
 
       const seriesCode = locator.split("/")[0];
-      const chapterPage = parseHTML(request(`${WEB}/series/${seriesCode}/full-chapter-list`));
+      const chapterPage = parseHTML(
+        request(`${siteBase()}/series/${seriesCode}/full-chapter-list`),
+      );
       const anchors = chapterPage("div[x-data] > a");
       const total = anchors.length;
       let indexed = false;
@@ -409,7 +463,11 @@ export function get_details(): I32 {
             .split("/")
             .filter((segment) => segment.length > 0)
             .pop() ?? name;
-        const item: ChapterItem = { id: chapterId, number: null, language: "en" };
+        const item: ChapterItem = {
+          id: chapterId,
+          number: null,
+          language: "en",
+        };
         const number = parseChapterNumber(name);
         item.number = indexed ? total - index : number;
         item.title = name;
@@ -426,7 +484,7 @@ export function get_details(): I32 {
           .get()
           .some((value) => value === true);
         item.scanlator = official ? "Official" : "Unknown";
-        item.url = href.startsWith("http") ? href : resolveUrl(WEB, href);
+        item.url = href.startsWith("http") ? href : resolveUrl(siteBase(), href);
         chapters.push(item);
       });
       details.chapters = chapters;
@@ -447,8 +505,8 @@ export function get_pages(): I32 {
       const chapterUrl = value.startsWith("http")
         ? value
         : value.includes("/")
-          ? resolveUrl(WEB, value)
-          : `${WEB}/chapters/${value}`;
+          ? resolveUrl(siteBase(), value)
+          : `${siteBase()}/chapters/${value}`;
       const $ = parseHTML(request(`${chapterUrl}/images?is_prev=False&reading_style=long_strip`));
       const images = $("#chapter-images img");
       if (images.length === 0) {
