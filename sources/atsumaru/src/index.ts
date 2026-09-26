@@ -5,6 +5,7 @@ import {
   fetch,
   ok,
   parseChapterNumber,
+  storageGet,
   type ChapterItem,
   type ErrorCode,
   type FilterSchema,
@@ -13,6 +14,7 @@ import {
   type PageItem,
   type PageResult,
   type SearchQuery,
+  type SettingSchema,
   type SourceMetadata,
 } from "@makinuki/pdk";
 import { MakiNukiHttpError } from "@makinuki/pdk";
@@ -42,8 +44,37 @@ const metadata: SourceMetadata = {
   baseUrl: WEB,
   iconUrl: `${WEB}/favicon.ico`,
   nsfw: false,
-  allowedHosts: ["atsu.moe"],
+  // The image origin is a separate host: any https://atsu.moe/static/... path
+  // redirects to the same path on cdn.atsu.moe, and a transport that checks
+  // every redirect hop needs it allowed.
+  allowedHosts: ["atsu.moe", "cdn.atsu.moe"],
 };
+
+const SETTINGS: SettingSchema[] = [
+  {
+    id: "base_url",
+    title: "Site address",
+    description: "Custom site origin. Empty means the built-in address.",
+    type: "text",
+    placeholder: WEB,
+    default: WEB,
+  },
+];
+
+// A missing key means the built-in origin; an unparsable value falls back to
+// it so a bad saved value cannot break every request.
+function siteBase(): string {
+  const override = storageGet("base_url");
+  if (override && override.length > 0) {
+    try {
+      const url = new URL(override);
+      if (url.protocol === "http:" || url.protocol === "https:") return url.origin;
+    } catch {
+      // fall through to the built-in origin
+    }
+  }
+  return WEB;
+}
 
 const GENRES: Array<{ id: string; name: string }> = [
   { id: "39", name: "Action" },
@@ -214,16 +245,36 @@ function imageUrl(raw: unknown): string | undefined {
   if (value.length === 0) return undefined;
   if (value.startsWith("http")) return value.replace(/^http:\/\//, "https://");
   if (value.startsWith("//")) return `https:${value}`;
-  return `${WEB}/static/${value.replace(/^\/+/, "").replace(/^static\//, "")}`;
+  return `${siteBase()}/static/${value.replace(/^\/+/, "").replace(/^static\//, "")}`;
 }
 
+// Page images are served only from the image host: the payload path resolves on
+// the site origin to 410, while the same path on the image host answers 200. The
+// image host is the site host under a cdn label, so a site address override
+// moves it the same way it moves the site.
+function pageImageUrl(raw: unknown): string | undefined {
+  const value = asString(raw).trim();
+  if (value.length === 0) return undefined;
+  if (value.startsWith("http")) return value.replace(/^http:\/\//, "https://");
+  if (value.startsWith("//")) return `https:${value}`;
+  const site = new URL(siteBase());
+  return `https://cdn.${site.host}/static/${value.replace(/^\/+/, "").replace(/^static\//, "")}`;
+}
+
+// The search document carries the cover as a plain path string while the
+// series page carries an object of size variants, so both shapes are read and
+// the largest available variant wins.
 function posterOf(entry: RecordObject): string | undefined {
-  const large = asString(entry["largeImage"]).trim();
+  const poster = entry["poster"];
+  if (typeof poster === "string") return imageUrl(poster);
+  const nested = asRecord(poster);
+  const large = asString(nested["largeImage"]).trim();
   if (large.length > 0) return imageUrl(large);
-  const image = entry["image"];
-  if (typeof image === "string") return imageUrl(image);
-  const nested = asRecord(image);
-  return imageUrl(nested["largeImage"] ?? nested["image"]);
+  const image = asString(nested["image"]).trim();
+  if (image.length > 0) return imageUrl(image);
+  const medium = asString(nested["mediumImage"]).trim();
+  if (medium.length > 0) return imageUrl(medium);
+  return undefined;
 }
 
 function namesOf(value: unknown): string[] {
@@ -246,7 +297,7 @@ function createMangaItem(entry: RecordObject): MangaItem {
   const item: MangaItem = { id: asString(entry["id"]), title: asString(entry["title"]).trim() };
   const cover = posterOf(entry);
   if (cover) item.coverUrl = cover;
-  item.url = `${WEB}/manga/${item.id}`;
+  item.url = `${siteBase()}/manga/${item.id}`;
   return item;
 }
 
@@ -267,7 +318,7 @@ function statusOf(value: unknown): MangaDetails["status"] {
 }
 
 function searchUrl(query: string, page: number, filters: RecordObject): string {
-  const url = new URL(`${WEB}/collections/manga/documents/search`);
+  const url = new URL(`${siteBase()}/collections/manga/documents/search`);
   const trimmed = query.trim();
   url.searchParams.set("q", trimmed.length > 0 ? trimmed : "*");
 
@@ -332,6 +383,11 @@ export function get_filters(): I32 {
   return 0;
 }
 
+export function get_settings(): I32 {
+  Host.outputString(JSON.stringify(SETTINGS));
+  return 0;
+}
+
 export function search(): I32 {
   const input = JSON.parse(Host.inputString()) as SearchQuery;
   const page = typeof input.page === "number" && input.page >= 1 ? input.page : 1;
@@ -367,7 +423,7 @@ export function get_details(): I32 {
         throw new ScraperError("NOT_FOUND", "empty manga locator");
       }
       const page = asRecord(
-        requestJson(`${WEB}/api/manga/page?id=${encodeURIComponent(id)}`)["mangaPage"],
+        requestJson(`${siteBase()}/api/manga/page?id=${encodeURIComponent(id)}`)["mangaPage"],
       );
       if (asString(page["id"]).length === 0) {
         throw new ScraperError("NOT_FOUND", `no title for ${id}`);
@@ -398,14 +454,16 @@ export function get_details(): I32 {
       const artistNames = byType("artist");
       if (artistNames.length > 0) details.artists = artistNames;
       const genres = namesOf(page["genres"]);
-      const type = asString(page["type"]).trim();
-      if (type.length > 0) genres.unshift(type);
       if (genres.length > 0) details.genres = genres;
+      // The site separates its genre axis from its tag axis, so the two lists
+      // are reported separately instead of being merged.
+      const tags = namesOf(page["tags"]);
+      if (tags.length > 0) details.tags = tags;
       const cover = posterOf(page);
       if (cover) details.coverUrl = cover;
 
       const chapters = asRecord(
-        requestJson(`${WEB}/api/manga/allChapters?mangaId=${encodeURIComponent(id)}`),
+        requestJson(`${siteBase()}/api/manga/allChapters?mangaId=${encodeURIComponent(id)}`),
       );
       const scanlators = scanlatorMap(page);
       details.chapters = asArray(chapters["chapters"])
@@ -427,7 +485,7 @@ export function get_details(): I32 {
           if (Number.isFinite(createdAt) && createdAt > 0) item.uploadedAt = createdAt;
           const scanlator = scanlators.get(asString(chapter["scanlationMangaId"]));
           if (scanlator && scanlator.length > 0) item.scanlator = scanlator;
-          item.url = `${WEB}/read/${id}/${chapterId}`;
+          item.url = `${siteBase()}/read/${id}/${chapterId}`;
           return item;
         })
         .filter((chapter): chapter is ChapterItem => chapter !== null);
@@ -452,7 +510,7 @@ export function get_pages(): I32 {
       }
       const data = asRecord(
         requestJson(
-          `${WEB}/api/read/chapter?mangaId=${encodeURIComponent(manga)}&chapterId=${encodeURIComponent(chapter)}`,
+          `${siteBase()}/api/read/chapter?mangaId=${encodeURIComponent(manga)}&chapterId=${encodeURIComponent(chapter)}`,
         )["readChapter"],
       );
       const pages = asArray(data["pages"]);
@@ -460,7 +518,7 @@ export function get_pages(): I32 {
         throw new ScraperError("PARSING_ERROR", "chapter carries no pages");
       }
       return pages.map((entry, pageIndex): PageItem => {
-        const url = imageUrl(asRecord(entry)["image"]);
+        const url = pageImageUrl(asRecord(entry)["image"]);
         if (!url) {
           throw new ScraperError("PARSING_ERROR", "chapter page missing an image path");
         }
