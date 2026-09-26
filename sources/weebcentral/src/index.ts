@@ -41,7 +41,7 @@ const ERROR_CODES: ErrorCode[] = [
 const metadata: SourceMetadata = {
   id: "weebcentral",
   name: "Weeb Central",
-  version: "1.0.0",
+  version: "1.1.0",
   abiVersion: 1,
   lang: "en",
   baseUrl: WEB,
