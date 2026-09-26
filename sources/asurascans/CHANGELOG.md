@@ -5,7 +5,7 @@ plugin version follows semver; contract-level changes follow the ABI
 versioning policy defined in the spec repository (SPECIFICATION.md,
 Section 7).
 
-## [Unreleased]
+## [1.2.0] - 2026-09-26
 
 - List premium and early-access chapters as locked entries instead of
   dropping them; their pages stay unreachable without an account.
