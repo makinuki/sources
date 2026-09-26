@@ -4,7 +4,7 @@ All notable changes to the atsumaru source plugin are recorded here. The plugin
 version follows semver; contract-level changes follow the ABI versioning policy
 defined in the spec repository (SPECIFICATION.md, Section 7).
 
-## [Unreleased]
+## [1.1.0] - 2026-09-26
 
 - Add a site address setting for the site origin; the search, series, chapter
   and reader requests, the cover artwork and the emitted URLs all follow the
