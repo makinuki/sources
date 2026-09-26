@@ -7,7 +7,8 @@
 # runs the build and conformance gates, folds the plugin changelog
 # Unreleased section into a dated section, bumps the plugin version, then
 # creates the release commit and an annotated tag.
-# Nothing is pushed; the script prints the push command.
+# Nothing is pushed; the script prints the push command. Only the released
+# plugin is rebuilt.
 #
 # A plugin that carries no release tag has never been released, so it may be
 # cut at the version it already declares (scripts/release.sh <id> 1.0.0).
@@ -152,8 +153,8 @@ done
 
 echo "== typecheck"
 pnpm typecheck
-echo "== build"
-pnpm build
+echo "== build $id"
+pnpm build "$id"
 echo "== test $id"
 pnpm test "$id"
 
