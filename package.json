@@ -11,7 +11,11 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.ts",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "generate-index": "node --experimental-wasm-jspi scripts/generate-index.ts",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
     "test": "node --experimental-wasm-jspi scripts/run-tests.ts",
     "typecheck": "tsc --noEmit"
   },
@@ -25,6 +29,8 @@
     "@types/node": "^24.13.3",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
+    "oxfmt": "^0.70.0",
+    "oxlint": "^1.85.0",
     "typescript": "^7.0.2"
   },
   "packageManager": "pnpm@11.22.0+sha512.1ff870c4c6133dfd88fb2afc46dd13d47f09c9794b438c6fdb47ca98caf3bc16381ee0be93a091b8e3824cf01f889f46d7d9e20910fb0be1ab0fb5baa80dd621"
