@@ -154,7 +154,10 @@ const FILTERS: FilterSchema[] = [
     id: "status",
     title: "Series status",
     type: "select",
-    options: [{ label: "Any", value: "" }, ...STATUSES.map((status) => ({ label: status, value: status }))],
+    options: [
+      { label: "Any", value: "" },
+      ...STATUSES.map((status) => ({ label: status, value: status })),
+    ],
     default: "",
   },
   {
@@ -184,7 +187,9 @@ class ScraperError extends Error {
 }
 
 function asRecord(value: unknown, fallback: RecordObject = {}): RecordObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as RecordObject) : fallback;
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as RecordObject)
+    : fallback;
 }
 
 function asString(value: unknown): string {
@@ -224,7 +229,9 @@ function runExport<T>(fn: () => T): string {
     if (error instanceof SyntaxError || error instanceof TypeError) {
       return JSON.stringify(fail("PARSING_ERROR", error.message));
     }
-    return JSON.stringify(fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)));
+    return JSON.stringify(
+      fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)),
+    );
   }
 }
 
@@ -241,7 +248,6 @@ function coverFrom(scope: ReturnType<ReturnType<typeof parseHTML>>): string | un
   if (typeof image === "string" && image.length > 0) return image;
   return undefined;
 }
-
 
 // A series locator is the path segment pair that follows the site's series
 // prefix, which is what the pages of a series are keyed by.
@@ -319,7 +325,11 @@ export function search(): I32 {
         const href = anchor.attr("href");
         const title = cleanText(anchor.find("div:not([class]):last-child").last().text());
         if (!href || title.length === 0) return;
-        const item: MangaItem = { id: seriesLocator(href), title, url: href.startsWith("http") ? href : resolveUrl(WEB, href) };
+        const item: MangaItem = {
+          id: seriesLocator(href),
+          title,
+          url: href.startsWith("http") ? href : resolveUrl(WEB, href),
+        };
         const cover = coverFrom(anchor);
         if (cover) item.coverUrl = cover;
         items.push(item);
@@ -357,7 +367,9 @@ export function get_details(): I32 {
         status: statusOf(head.find("ul > li:has(strong:contains(Status)) > a").first().text()),
         chapters: [],
       };
-      const description = cleanText(body.find("li:has(strong:contains(Description)) > p").first().text());
+      const description = cleanText(
+        body.find("li:has(strong:contains(Description)) > p").first().text(),
+      );
       if (description.length > 0) details.description = description;
       const authors = head
         .find("ul > li:has(strong:contains(Author)) > span > a")
@@ -392,7 +404,11 @@ export function get_details(): I32 {
         const name = cleanText(anchor.find("span.flex > span").first().text());
         if (!href || name.length === 0) return;
         if (/season\s*\d+|^s\d+/i.test(name)) indexed = true;
-        const chapterId = href.split("/").filter((segment) => segment.length > 0).pop() ?? name;
+        const chapterId =
+          href
+            .split("/")
+            .filter((segment) => segment.length > 0)
+            .pop() ?? name;
         const item: ChapterItem = { id: chapterId, number: null, language: "en" };
         const number = parseChapterNumber(name);
         item.number = indexed ? total - index : number;
@@ -404,7 +420,9 @@ export function get_details(): I32 {
         }
         const official = anchor
           .find("img")
-          .map((_, image) => (chapterPage(image).attr("src") ?? "").toLowerCase().includes("official"))
+          .map((_, image) =>
+            (chapterPage(image).attr("src") ?? "").toLowerCase().includes("official"),
+          )
           .get()
           .some((value) => value === true);
         item.scanlator = official ? "Official" : "Unknown";
@@ -442,7 +460,11 @@ export function get_pages(): I32 {
           if (!src || src.length === 0) {
             throw new ScraperError("PARSING_ERROR", "chapter page missing an image source");
           }
-          return { index, url: src.startsWith("http") ? src : resolveUrl(chapterUrl, src), isScrambled: false };
+          return {
+            index,
+            url: src.startsWith("http") ? src : resolveUrl(chapterUrl, src),
+            isScrambled: false,
+          };
         })
         .get();
     }),

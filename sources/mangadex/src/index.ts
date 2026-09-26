@@ -62,7 +62,9 @@ class ScraperError extends Error {
 }
 
 function asRecord(value: unknown, fallback: RecordObject = {}): RecordObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as RecordObject) : fallback;
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as RecordObject)
+    : fallback;
 }
 
 function asArray(value: unknown, fallback: unknown[] = []): unknown[] {
@@ -125,7 +127,9 @@ function runExport<T>(fn: () => T): string {
     if (error instanceof SyntaxError || error instanceof TypeError) {
       return JSON.stringify(fail("PARSING_ERROR", error.message));
     }
-    return JSON.stringify(fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)));
+    return JSON.stringify(
+      fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)),
+    );
   }
 }
 
@@ -136,14 +140,17 @@ function pickTitle(attrs: RecordObject): string {
   if (typeof direct === "string" && direct.length > 0) candidates.push(direct);
   for (const lang of ["en", "ko", "ja", "zh", "es", "pt-br"]) {
     const value = title[lang];
-    if (typeof value === "string" && value.length > 0 && !candidates.includes(value)) candidates.push(value);
+    if (typeof value === "string" && value.length > 0 && !candidates.includes(value))
+      candidates.push(value);
   }
   for (const value of Object.values(title)) {
-    if (typeof value === "string" && value.length > 0 && !candidates.includes(value)) candidates.push(value);
+    if (typeof value === "string" && value.length > 0 && !candidates.includes(value))
+      candidates.push(value);
   }
   for (const alt of asArray(attrs["altTitles"])) {
     for (const value of Object.values(asRecord(alt))) {
-      if (typeof value === "string" && value.length > 0 && !candidates.includes(value)) candidates.push(value);
+      if (typeof value === "string" && value.length > 0 && !candidates.includes(value))
+        candidates.push(value);
     }
   }
   return candidates[0] ?? "";
@@ -215,7 +222,8 @@ const SETTINGS: SettingSchema[] = [
   {
     id: "base_url",
     title: "API address",
-    description: "Custom API origin. Title and chapter links keep pointing at the public site; empty means the built-in address.",
+    description:
+      "Custom API origin. Title and chapter links keep pointing at the public site; empty means the built-in address.",
     type: "text",
     placeholder: API,
     default: API,
@@ -383,7 +391,13 @@ const FILTERS: FilterSchema[] = (() => {
   for (const box of checkboxes) {
     result.push({ id: box.id, title: box.label, type: "checkbox", default: box.default });
   }
-  result.push({ id: "sort", title: "Sort", type: "select", options: SORT_OPTIONS, default: "relevance_desc" });
+  result.push({
+    id: "sort",
+    title: "Sort",
+    type: "select",
+    options: SORT_OPTIONS,
+    default: "relevance_desc",
+  });
   result.push({
     id: "includedTagsMode",
     title: "Included tags mode",
@@ -440,7 +454,8 @@ function normalizeFilters(raw: RecordObject | undefined): NormalizedFilters {
   const checkedValues = (prefix: string, defaults: string[]): string[] => {
     const checked: string[] = [];
     for (const key of Object.keys(raw ?? {})) {
-      if (key.startsWith(prefix + ".") && asBool(key, false)) checked.push(key.slice(prefix.length + 1));
+      if (key.startsWith(prefix + ".") && asBool(key, false))
+        checked.push(key.slice(prefix.length + 1));
     }
     return checked.length > 0 ? checked : defaults;
   };
@@ -458,7 +473,12 @@ function normalizeFilters(raw: RecordObject | undefined): NormalizedFilters {
   return {
     hasAvailableChapters: asBool("hasAvailableChapters", false),
     originalLanguages: checkedValues("originalLanguage", []),
-    contentRatings: checkedValues("contentRating", ["safe", "suggestive", "erotica", "pornographic"]),
+    contentRatings: checkedValues("contentRating", [
+      "safe",
+      "suggestive",
+      "erotica",
+      "pornographic",
+    ]),
     demographics: checkedValues("demographic", []),
     statuses: checkedValues("status", []),
     sort: sortToQuery(asString("sort", "relevance_desc")),
@@ -596,7 +616,8 @@ function createChapterItem(data: RecordObject): ChapterItem | null {
   if (title.length > 0) item.title = title;
   const publishAt = typeof attrs["publishAt"] === "string" ? Date.parse(attrs["publishAt"]) : NaN;
   if (!Number.isNaN(publishAt) && publishAt >= 0) item.uploadedAt = publishAt;
-  const scanlator = groups.length > 0 ? groups.join(" & ") : users.length > 0 ? users.join(" & ") : undefined;
+  const scanlator =
+    groups.length > 0 ? groups.join(" & ") : users.length > 0 ? users.join(" & ") : undefined;
   if (scanlator) item.scanlator = scanlator;
   if (externalUrl.length > 0) {
     item.locked = true;
@@ -627,7 +648,8 @@ function createMangaDetails(data: RecordObject): MangaDetails {
   const altTitles: string[] = [];
   for (const alt of asArray(attrs["altTitles"])) {
     for (const value of Object.values(asRecord(alt))) {
-      if (typeof value === "string" && value.length > 0 && !altTitles.includes(value)) altTitles.push(value);
+      if (typeof value === "string" && value.length > 0 && !altTitles.includes(value))
+        altTitles.push(value);
     }
   }
   if (altTitles.length > 0) details.altTitles = altTitles;
@@ -800,7 +822,12 @@ export function get_pages(): I32 {
       const base = response["baseUrl"];
       const chapter = asRecord(response["chapter"]);
       const hash = chapter["hash"];
-      if (typeof base !== "string" || typeof hash !== "string" || base.length === 0 || hash.length === 0) {
+      if (
+        typeof base !== "string" ||
+        typeof hash !== "string" ||
+        base.length === 0 ||
+        hash.length === 0
+      ) {
         throw new ScraperError("PARSING_ERROR", "at-home response missing baseUrl or chapter hash");
       }
       // Compressed images live under a separate path with their own file

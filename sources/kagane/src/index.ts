@@ -103,7 +103,10 @@ const FILTERS: FilterSchema[] = [
     id: "language",
     title: "Language",
     type: "select",
-    options: [{ label: "Any", value: "" }, ...LANGUAGES.map((code) => ({ label: code, value: code }))],
+    options: [
+      { label: "Any", value: "" },
+      ...LANGUAGES.map((code) => ({ label: code, value: code })),
+    ],
     default: "",
   },
 ];
@@ -120,7 +123,9 @@ class ScraperError extends Error {
 }
 
 function asRecord(value: unknown, fallback: RecordObject = {}): RecordObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as RecordObject) : fallback;
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as RecordObject)
+    : fallback;
 }
 
 function asArray(value: unknown, fallback: unknown[] = []): unknown[] {
@@ -141,7 +146,12 @@ function mapHttpStatus(status: number): ErrorCode {
   return "NETWORK_TIMEOUT";
 }
 
-function request(url: string, method: string, body: string | null, headers: Record<string, string>): string {
+function request(
+  url: string,
+  method: string,
+  body: string | null,
+  headers: Record<string, string>,
+): string {
   const response = fetch({
     url,
     method,
@@ -154,7 +164,12 @@ function request(url: string, method: string, body: string | null, headers: Reco
   return response.body;
 }
 
-function requestJson(url: string, method: string, payload: unknown, headers: Record<string, string> = {}): RecordObject {
+function requestJson(
+  url: string,
+  method: string,
+  payload: unknown,
+  headers: Record<string, string> = {},
+): RecordObject {
   const body = payload === null ? null : JSON.stringify(payload);
   const extra = body === null ? headers : { "Content-Type": "application/json", ...headers };
   return asRecord(JSON.parse(request(url, method, body, extra)));
@@ -182,7 +197,10 @@ function integrityToken(): string {
   }
   const exp = Number(response["exp"] ?? 0);
   const expiresAt = exp > 1e12 ? exp : exp * 1000;
-  storageSet(INTEGRITY_KEY, JSON.stringify({ token, expiresAt: expiresAt > 0 ? expiresAt : Date.now() + 600000 }));
+  storageSet(
+    INTEGRITY_KEY,
+    JSON.stringify({ token, expiresAt: expiresAt > 0 ? expiresAt : Date.now() + 600000 }),
+  );
   return token;
 }
 
@@ -202,7 +220,9 @@ function runExport<T>(fn: () => T): string {
     if (error instanceof SyntaxError || error instanceof TypeError) {
       return JSON.stringify(fail("PARSING_ERROR", error.message));
     }
-    return JSON.stringify(fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)));
+    return JSON.stringify(
+      fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)),
+    );
   }
 }
 
@@ -296,13 +316,15 @@ function statusOf(value: unknown): MangaDetails["status"] {
 function searchBody(query: string, filters: RecordObject): RecordObject {
   const body: RecordObject = {
     content_rating: CONTENT_RATINGS,
-    source_type: filters["source_type"] === "official" ? ["Official"] : ["Official", "Unofficial", "Mixed"],
+    source_type:
+      filters["source_type"] === "official" ? ["Official"] : ["Official", "Unofficial", "Mixed"],
   };
   const trimmed = query.trim();
   if (trimmed.length > 0) body["title"] = trimmed;
   const language = asString(filters["language"]).trim();
   if (language.length > 0) {
-    body["content_lang"] = language === "zh-Hans" || language === "zh-Hant" ? ["zh-Hans", "zh-Hant"] : [language];
+    body["content_lang"] =
+      language === "zh-Hans" || language === "zh-Hant" ? ["zh-Hans", "zh-Hant"] : [language];
   }
   return body;
 }
@@ -392,7 +414,9 @@ export function get_details(): I32 {
         details.coverUrl = covers[0];
         if (covers.length > 1) details.covers = covers.slice(1).map((url) => ({ url }));
       }
-      details.chapters = asArray(data["series_books"]).map((entry) => createChapterItem(asRecord(entry), id));
+      details.chapters = asArray(data["series_books"]).map((entry) =>
+        createChapterItem(asRecord(entry), id),
+      );
       return details;
     }),
   );
@@ -407,9 +431,14 @@ export function get_pages(): I32 {
       if (id.length === 0) {
         throw new ScraperError("NOT_FOUND", "empty chapter locator");
       }
-      const challenge = requestJson(`${API}/books/${id}?is_datasaver=false`, "POST", {}, {
-        "x-integrity-token": integrityToken(),
-      });
+      const challenge = requestJson(
+        `${API}/books/${id}?is_datasaver=false`,
+        "POST",
+        {},
+        {
+          "x-integrity-token": integrityToken(),
+        },
+      );
       const token = asString(challenge["access_token"]);
       const cacheUrl = asString(challenge["cache_url"]).replace(/\/+$/, "");
       const pages = asArray(asRecord(challenge["manifest"])["pages"]);

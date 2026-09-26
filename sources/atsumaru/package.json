@@ -1,8 +1,8 @@
 {
   "name": "@makinuki/source-atsumaru",
   "version": "0.1.0",
-  "description": "Atsumaru source plugin (JSON API based)",
   "private": true,
+  "description": "Atsumaru source plugin (JSON API based)",
   "type": "module",
   "dependencies": {
     "@makinuki/pdk": "^1.4.0"

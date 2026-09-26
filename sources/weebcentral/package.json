@@ -1,8 +1,8 @@
 {
   "name": "@makinuki/source-weebcentral",
   "version": "0.1.0",
-  "description": "Weeb Central source plugin (HTML scraping based)",
   "private": true,
+  "description": "Weeb Central source plugin (HTML scraping based)",
   "type": "module",
   "dependencies": {
     "@makinuki/pdk": "^1.4.0"

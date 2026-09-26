@@ -1,8 +1,8 @@
 {
   "name": "@makinuki/source-kagane",
   "version": "0.1.0",
-  "description": "Kagane source plugin (REST API based)",
   "private": true,
+  "description": "Kagane source plugin (REST API based)",
   "type": "module",
   "dependencies": {
     "@makinuki/pdk": "^1.4.0"

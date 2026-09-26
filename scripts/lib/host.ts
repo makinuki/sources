@@ -11,9 +11,16 @@ const extism = require(require.resolve("@extism/extism", { paths: [pdkPath] }));
 // A challenged source can only be exercised with the clearance material an
 // operator obtained in a browser, so both the user agent and the cookie jar
 // can be overridden for a run.
-export const UA = process.env.MAKINUKI_TEST_UA?.trim() || "MakiNuki/0.1 (github.com/makinuki; conformance runner)";
+export const UA =
+  process.env.MAKINUKI_TEST_UA?.trim() || "MakiNuki/0.1 (github.com/makinuki; conformance runner)";
 export const COOKIE = process.env.MAKINUKI_TEST_COOKIE?.trim() ?? "";
-export const WASM_EXPORTS = ["get_metadata", "get_filters", "search", "get_details", "get_pages"] as const;
+export const WASM_EXPORTS = [
+  "get_metadata",
+  "get_filters",
+  "search",
+  "get_details",
+  "get_pages",
+] as const;
 
 const store = new Map<string, string>();
 
@@ -22,7 +29,8 @@ function storageGetValue(key: string): string | undefined {
 }
 
 function storageSetValue(key: string, value: string): void {
-  if (Buffer.byteLength(value, "utf8") > 64 * 1024) throw new Error("storage value exceeds 64 KB cap");
+  if (Buffer.byteLength(value, "utf8") > 64 * 1024)
+    throw new Error("storage value exceeds 64 KB cap");
   store.set(key, value);
 }
 
@@ -74,8 +82,12 @@ function withStoredCookies(url: string, header: string | undefined): string {
   return Array.from(merged, ([name, value]) => `${name}=${value}`).join("; ");
 }
 
-function rememberCookies(url: string, response: { headers: { getSetCookie?: () => string[] } }): void {
-  const entries = typeof response.headers.getSetCookie === "function" ? response.headers.getSetCookie() : [];
+function rememberCookies(
+  url: string,
+  response: { headers: { getSetCookie?: () => string[] } },
+): void {
+  const entries =
+    typeof response.headers.getSetCookie === "function" ? response.headers.getSetCookie() : [];
   for (const entry of entries) {
     const [pair] = entry.split(";");
     const separator = pair.indexOf("=");
@@ -94,7 +106,10 @@ export interface Plugin {
 
 const hostFunctions = {
   "extism:host/makinuki": {
-    makinuki_fetch: async (ctx: { read(p: number): { string(): string }; store(v: string): bigint }, ptr: number) => {
+    makinuki_fetch: async (
+      ctx: { read(p: number): { string(): string }; store(v: string): bigint },
+      ptr: number,
+    ) => {
       const req = JSON.parse(ctx.read(ptr).string()) as {
         url: string;
         method?: string;
@@ -102,7 +117,7 @@ const hostFunctions = {
         body?: string;
       };
       const headers: Record<string, string> = {
-        ...(req.headers ?? {}),
+        ...req.headers,
         "User-Agent": UA,
         ...(COOKIE.length > 0 ? { Cookie: COOKIE } : {}),
       };
@@ -119,10 +134,17 @@ const hostFunctions = {
       });
       rememberCookies(req.url, res);
       return ctx.store(
-        JSON.stringify({ status: res.status, headers: Object.fromEntries(res.headers), body: await res.text() })
+        JSON.stringify({
+          status: res.status,
+          headers: Object.fromEntries(res.headers),
+          body: await res.text(),
+        }),
       );
     },
-    makinuki_storage_get: (ctx: { read(p: number): { string(): string }; store(v: string): bigint }, ptr: number) => {
+    makinuki_storage_get: (
+      ctx: { read(p: number): { string(): string }; store(v: string): bigint },
+      ptr: number,
+    ) => {
       const key = JSON.parse(ctx.read(ptr).string()) as string;
       const value = storageGetValue(key);
       return value === undefined ? 0n : ctx.store(value);
@@ -149,6 +171,6 @@ export async function loadPlugin(wasmPath: string): Promise<Plugin> {
   const wasm = readFileSync(wasmPath);
   return extism.createPlugin(
     { wasm: [{ data: new Uint8Array(wasm) }] },
-    { useWasi: true, functions: hostFunctions }
+    { useWasi: true, functions: hostFunctions },
   ) as Promise<Plugin>;
 }

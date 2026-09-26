@@ -13,7 +13,9 @@ const pdkPackage = require.resolve("@makinuki/pdk/package.json");
 const buildBin = join(dirname(pdkPackage), require(pdkPackage).bin["makinuki-build"]);
 
 const available = readdirSync(sourcesDir, { withFileTypes: true })
-  .filter((entry) => entry.isDirectory() && existsSync(join(sourcesDir, entry.name, "package.json")))
+  .filter(
+    (entry) => entry.isDirectory() && existsSync(join(sourcesDir, entry.name, "package.json")),
+  )
   .map((entry) => entry.name);
 
 if (available.length === 0) {
@@ -38,7 +40,7 @@ for (const name of sources) {
   const result = spawnSync(
     process.execPath,
     [buildBin, "src/index.ts", "-i", "src/index.d.ts", "-o", join(distDir, `${name}.wasm`)],
-    { cwd: join(sourcesDir, name), stdio: "inherit" }
+    { cwd: join(sourcesDir, name), stdio: "inherit" },
   );
   if (result.status !== 0) {
     process.exit(result.status ?? 1);

@@ -56,7 +56,122 @@ const ORIGINS = [
 ];
 
 const GENRES = [
-  "Action",   "Adult",   "Adventure",   "Aliens",   "Animals",   "Avant Garde",   "Award Winning",   "BDSM",   "Boys Love",   "Boys' Love",   "Bully",   "Business",   "Comedy",   "Comic",   "Cooking",   "Crazy MC",   "Crime",   "Crossdressing",   "Cultivation",   "Delinquents",   "Demons",   "Doujinshi",   "Drama",   "Ecchi",   "Erotica",   "Fantasy",   "Female Protagonist",   "Femdom",   "Fight",   "Game",   "Gender Bender",   "Genderswap",   "Genius MC",   "Genres",   "Ghosts",   "Girls Love",   "Girls' Love",   "Gore",   "Gourmet",   "Gyaru",   "Harem",   "Hentai",   "Historical",   "Horror",   "Hunters",   "Idol",   "Incest",   "Isekai",   "Loli",   "Lolicon",   "Mafia",   "Magic",   "Magical Girls",   "Mahou Shoujo",   "Manga",   "Manhwa",   "Martial Arts",   "Mature",   "Mecha",   "Medical",   "Military",   "Monster Girls",   "Monsters",   "Murim",   "Music",   "Mystery",   "Ninja",   "Office Romance",   "Office Worker",   "Office Workers",   "One Shot",   "Oneshot",   "Overpowered",   "Philosophical",   "playboy",   "Police",   "Politics",   "Post-Apocalyptic",   "Psychological",   "Regression",   "Reincarnation",   "Revenge",   "Reverse Harem",   "Romance",   "Samurai",   "School",   "School Life",   "Sci-Fi",   "Shota",   "Shotacon",   "Shoujo Ai",   "SHOUNEN",   "Shounen Ai",   "Slice of Life",   "Slice_of_life",   "Smut",   "Sports",   "Superhero",   "Supernatural",   "Survival",   "Suspense",   "System",   "Thriller",   "Time Travel",   "Tower",   "Tragedy",   "uncensored",   "Vampires",   "Video Games",   "Villainess",   "Virtual Reality",   "Webtoon",   "Workplace",   "Yaoi",   "Yuri",   "Zombies",
+  "Action",
+  "Adult",
+  "Adventure",
+  "Aliens",
+  "Animals",
+  "Avant Garde",
+  "Award Winning",
+  "BDSM",
+  "Boys Love",
+  "Boys' Love",
+  "Bully",
+  "Business",
+  "Comedy",
+  "Comic",
+  "Cooking",
+  "Crazy MC",
+  "Crime",
+  "Crossdressing",
+  "Cultivation",
+  "Delinquents",
+  "Demons",
+  "Doujinshi",
+  "Drama",
+  "Ecchi",
+  "Erotica",
+  "Fantasy",
+  "Female Protagonist",
+  "Femdom",
+  "Fight",
+  "Game",
+  "Gender Bender",
+  "Genderswap",
+  "Genius MC",
+  "Genres",
+  "Ghosts",
+  "Girls Love",
+  "Girls' Love",
+  "Gore",
+  "Gourmet",
+  "Gyaru",
+  "Harem",
+  "Hentai",
+  "Historical",
+  "Horror",
+  "Hunters",
+  "Idol",
+  "Incest",
+  "Isekai",
+  "Loli",
+  "Lolicon",
+  "Mafia",
+  "Magic",
+  "Magical Girls",
+  "Mahou Shoujo",
+  "Manga",
+  "Manhwa",
+  "Martial Arts",
+  "Mature",
+  "Mecha",
+  "Medical",
+  "Military",
+  "Monster Girls",
+  "Monsters",
+  "Murim",
+  "Music",
+  "Mystery",
+  "Ninja",
+  "Office Romance",
+  "Office Worker",
+  "Office Workers",
+  "One Shot",
+  "Oneshot",
+  "Overpowered",
+  "Philosophical",
+  "playboy",
+  "Police",
+  "Politics",
+  "Post-Apocalyptic",
+  "Psychological",
+  "Regression",
+  "Reincarnation",
+  "Revenge",
+  "Reverse Harem",
+  "Romance",
+  "Samurai",
+  "School",
+  "School Life",
+  "Sci-Fi",
+  "Shota",
+  "Shotacon",
+  "Shoujo Ai",
+  "SHOUNEN",
+  "Shounen Ai",
+  "Slice of Life",
+  "Slice_of_life",
+  "Smut",
+  "Sports",
+  "Superhero",
+  "Supernatural",
+  "Survival",
+  "Suspense",
+  "System",
+  "Thriller",
+  "Time Travel",
+  "Tower",
+  "Tragedy",
+  "uncensored",
+  "Vampires",
+  "Video Games",
+  "Villainess",
+  "Virtual Reality",
+  "Webtoon",
+  "Workplace",
+  "Yaoi",
+  "Yuri",
+  "Zombies",
 ];
 
 const FILTERS: FilterSchema[] = [
@@ -144,10 +259,21 @@ const FILTERS: FilterSchema[] = [
       { label: "Shounen", value: "Shounen" },
     ],
   },
-  { id: "genres", title: "Genres", type: "tri_state", options: GENRES.map((genre) => ({ label: genre, value: genre })) },
+  {
+    id: "genres",
+    title: "Genres",
+    type: "tri_state",
+    options: GENRES.map((genre) => ({ label: genre, value: genre })),
+  },
   { id: "year_min", title: "Minimum year", type: "text", placeholder: "e.g. 2015", default: "" },
   { id: "year_max", title: "Maximum year", type: "text", placeholder: "e.g. 2024", default: "" },
-  { id: "min_chapters", title: "Minimum chapters", type: "text", placeholder: "e.g. 50", default: "" },
+  {
+    id: "min_chapters",
+    title: "Minimum chapters",
+    type: "text",
+    placeholder: "e.g. 50",
+    default: "",
+  },
   { id: "author", title: "Author", type: "text", placeholder: "", default: "" },
   { id: "artist", title: "Artist", type: "text", placeholder: "", default: "" },
 ];
@@ -164,7 +290,9 @@ class ScraperError extends Error {
 }
 
 function asRecord(value: unknown): Json {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Json) : {};
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Json)
+    : {};
 }
 
 function asArray(value: unknown): unknown[] {
@@ -194,7 +322,11 @@ function mapHttpStatus(status: number): ErrorCode {
 }
 
 function get(url: string): string {
-  const response = fetch({ url, method: "GET", headers: { Accept: "application/json, text/plain, */*" } });
+  const response = fetch({
+    url,
+    method: "GET",
+    headers: { Accept: "application/json, text/plain, */*" },
+  });
   if (response.status < 200 || response.status >= 300) {
     throw new ScraperError(mapHttpStatus(response.status), `HTTP ${response.status}`);
   }
@@ -223,7 +355,9 @@ function runExport<T>(fn: () => T): string {
         : mapHttpStatus(error.status ?? 0);
       return JSON.stringify(fail(code, error.message));
     }
-    return JSON.stringify(fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)));
+    return JSON.stringify(
+      fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)),
+    );
   }
 }
 
@@ -255,7 +389,8 @@ function decodeRsc(value: unknown): unknown {
       for (const [rawKey, rawValue] of Object.entries(element as Json)) {
         const keyIndex = Number(rawKey.replace(/^_/, ""));
         const key = flat[keyIndex];
-        record[typeof key === "string" ? key : String(key)] = resolve(Number(rawValue) ?? -1) ?? null;
+        record[typeof key === "string" ? key : String(key)] =
+          resolve(Number(rawValue) ?? -1) ?? null;
       }
       result = record;
     } else {
@@ -501,14 +636,22 @@ export function get_details(): I32 {
       if (locator.length === 0) {
         throw new ScraperError("NOT_FOUND", "empty series locator");
       }
-      const route = getRsc(`${WEB}/manga/${locator}.data?_routes=pages/MangaDetailPage`, "pages/MangaDetailPage");
+      const route = getRsc(
+        `${WEB}/manga/${locator}.data?_routes=pages/MangaDetailPage`,
+        "pages/MangaDetailPage",
+      );
       const manga = asRecord(asRecord(asRecord(route["data"])["mangaData"])["manga"]);
       const title = cleanText(asString(manga["title"]));
       if (title.length === 0) {
         throw new ScraperError("NOT_FOUND", `no series for ${locator}`);
       }
       const id = asString(manga["id"]) || String(asNumber(manga["id"]) ?? locator);
-      const details: MangaDetails = { id, title, status: statusOf(asString(manga["status"])), chapters: [] };
+      const details: MangaDetails = {
+        id,
+        title,
+        status: statusOf(asString(manga["status"])),
+        chapters: [],
+      };
       const cover = absoluteUrl(asString(manga["photo"]));
       if (cover) details.coverUrl = cover;
       const description = cleanText(asString(manga["description"]));
@@ -540,7 +683,9 @@ export function get_details(): I32 {
         if (name.length > 0) item.title = name;
         const language = asString(chapter["language"]);
         if (language.length > 0) item.language = language;
-        const scanlator = cleanText(asString(chapter["group_name"]) || asString(chapter["scanlator_name"]));
+        const scanlator = cleanText(
+          asString(chapter["group_name"]) || asString(chapter["scanlator_name"]),
+        );
         if (scanlator.length > 0) item.scanlator = scanlator;
         const uploadedAt = Date.parse(asString(chapter["date_added"]).replace(" ", "T"));
         if (Number.isFinite(uploadedAt)) item.uploadedAt = uploadedAt;

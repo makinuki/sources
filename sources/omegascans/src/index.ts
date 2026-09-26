@@ -99,7 +99,9 @@ class ScraperError extends Error {
 }
 
 function asRecord(value: unknown): Json {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Json) : {};
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Json)
+    : {};
 }
 
 function asArray(value: unknown): unknown[] {
@@ -124,7 +126,11 @@ function mapHttpStatus(status: number): ErrorCode {
 }
 
 function get(url: string): string {
-  const response = fetch({ url, method: "GET", headers: { Accept: "application/json, text/plain, */*" } });
+  const response = fetch({
+    url,
+    method: "GET",
+    headers: { Accept: "application/json, text/plain, */*" },
+  });
   if (response.status < 200 || response.status >= 300) {
     throw new ScraperError(mapHttpStatus(response.status), `HTTP ${response.status}`);
   }
@@ -153,7 +159,9 @@ function runExport<T>(fn: () => T): string {
         : mapHttpStatus(error.status ?? 0);
       return JSON.stringify(fail(code, error.message));
     }
-    return JSON.stringify(fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)));
+    return JSON.stringify(
+      fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)),
+    );
   }
 }
 
@@ -325,10 +333,16 @@ export function get_pages(): I32 {
   const input = JSON.parse(Host.inputString()) as string;
   Host.outputString(
     runExport(() => {
-      const locator = input.trim().replace(/^https?:\/\/[^/]+/, "").replace(/^\/+/, "");
+      const locator = input
+        .trim()
+        .replace(/^https?:\/\/[^/]+/, "")
+        .replace(/^\/+/, "");
       const segments = locator.split("/").filter((segment) => segment.length > 0);
       if (segments.length < 2) {
-        throw new ScraperError("NOT_FOUND", "chapter locator must carry a series and a chapter slug");
+        throw new ScraperError(
+          "NOT_FOUND",
+          "chapter locator must carry a series and a chapter slug",
+        );
       }
       const chapterSlug = segments[segments.length - 1];
       const seriesSlug = segments[segments.length - 2];

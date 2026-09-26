@@ -48,7 +48,9 @@ class ScraperError extends Error {
 }
 
 function asRecord(value: unknown, fallback: RecordObject = {}): RecordObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as RecordObject) : fallback;
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as RecordObject)
+    : fallback;
 }
 
 function asArray(value: unknown, fallback: unknown[] = []): unknown[] {
@@ -96,7 +98,9 @@ function runExport<T>(fn: () => T): string {
     if (error instanceof SyntaxError || error instanceof TypeError) {
       return JSON.stringify(fail("PARSING_ERROR", error.message));
     }
-    return JSON.stringify(fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)));
+    return JSON.stringify(
+      fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)),
+    );
   }
 }
 
@@ -431,7 +435,8 @@ function seriesSlug(value: string): string {
   const path = trimmed.startsWith("http") ? new URL(trimmed).pathname : trimmed;
   const segments = path.split("/").filter((segment) => segment.length > 0);
   const index = segments.findIndex((segment) => segment === "series" || segment === "comics");
-  const last = index >= 0 && index + 1 < segments.length ? segments[index + 1] : segments[segments.length - 1];
+  const last =
+    index >= 0 && index + 1 < segments.length ? segments[index + 1] : segments[segments.length - 1];
   return stableSeriesSlug(typeof last === "string" ? last : "");
 }
 
@@ -467,7 +472,8 @@ function createChapterItem(data: RecordObject, fallbackSlug: string): ChapterIte
   const number = chapterNumber(data["number"]);
   if (number === null) return null;
   const numberStr = formatNumber(number);
-  const seriesSlug = stableSeriesSlug(asString(data["series_slug"])) || stableSeriesSlug(fallbackSlug);
+  const seriesSlug =
+    stableSeriesSlug(asString(data["series_slug"])) || stableSeriesSlug(fallbackSlug);
   const chapterUrl = `${webBase()}/comics/${seriesSlug}/chapter/${numberStr}`;
   const item: ChapterItem = {
     id: `/series/${seriesSlug}/chapter/${numberStr}`,
@@ -568,9 +574,13 @@ export function get_details(): I32 {
       const html = requestHtml(`${webBase()}/comics/${slug}`);
       const metaIsland = findIsland(
         html,
-        (props) => typeof props["title"] !== "undefined" && typeof props["description"] !== "undefined",
+        (props) =>
+          typeof props["title"] !== "undefined" && typeof props["description"] !== "undefined",
       );
-      const chaptersIsland = findIsland(html, (props) => props["chapters"] !== undefined && props["publicUrl"] !== undefined);
+      const chaptersIsland = findIsland(
+        html,
+        (props) => props["chapters"] !== undefined && props["publicUrl"] !== undefined,
+      );
       const details = createMangaDetails(metaIsland, seriesPath(slug));
       details.chapters = asArray(chaptersIsland["chapters"])
         .map((entry) => createChapterItem(asRecord(entry), slug))

@@ -242,7 +242,9 @@ class ScraperError extends Error {
 }
 
 function asRecord(value: unknown): Json {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Json) : {};
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Json)
+    : {};
 }
 
 function asArray(value: unknown): unknown[] {
@@ -284,12 +286,16 @@ function runExport<T>(fn: () => T): string {
         : mapHttpStatus(error.status ?? 0);
       return JSON.stringify(fail(code, error.message));
     }
-    return JSON.stringify(fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)));
+    return JSON.stringify(
+      fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)),
+    );
   }
 }
 
 function encodeForm(params: Param[]): string {
-  return params.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join("&");
+  return params
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join("&");
 }
 
 // The site rejects its own API calls without the session token it embeds in
@@ -502,7 +508,10 @@ export function get_details(): I32 {
         .split("/")
         .map((name) => name.trim())
         .filter((name) => name.length > 0);
-      const description = [summary, altNames.length > 0 ? `Alternative names:\n${altNames.join("\n")}` : ""]
+      const description = [
+        summary,
+        altNames.length > 0 ? `Alternative names:\n${altNames.join("\n")}` : "",
+      ]
         .filter((part) => part.length > 0)
         .join("\n\n");
       if (description.length > 0) details.description = description;
@@ -525,7 +534,9 @@ export function get_details(): I32 {
             const name = cleanText(asString(translation["name"]));
             const volumeLabel = volume !== null && volume > 0 ? `Vol. ${volume} ` : "";
             if (name.length > 0) {
-              item.title = name.includes(String(number ?? "")) ? name : `${volumeLabel}Ch. ${number ?? ""} ${name}`.trim();
+              item.title = name.includes(String(number ?? ""))
+                ? name
+                : `${volumeLabel}Ch. ${number ?? ""} ${name}`.trim();
             }
             const group = asRecord(translation["group"]);
             const groupName = cleanText(asString(group["name"]));

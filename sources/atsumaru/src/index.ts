@@ -104,14 +104,20 @@ const FILTERS: FilterSchema[] = [
     id: "type",
     title: "Manga type",
     type: "select",
-    options: [{ label: "Any", value: "" }, ...TYPES.map((type) => ({ label: type.name, value: type.id }))],
+    options: [
+      { label: "Any", value: "" },
+      ...TYPES.map((type) => ({ label: type.name, value: type.id })),
+    ],
     default: "",
   },
   {
     id: "status",
     title: "Publishing status",
     type: "select",
-    options: [{ label: "Any", value: "" }, ...STATUSES.map((status) => ({ label: status.name, value: status.id }))],
+    options: [
+      { label: "Any", value: "" },
+      ...STATUSES.map((status) => ({ label: status.name, value: status.id })),
+    ],
     default: "",
   },
   {
@@ -122,7 +128,13 @@ const FILTERS: FilterSchema[] = [
     default: "views",
   },
   { id: "year", title: "Year", type: "text", placeholder: "e.g. 2024", default: "" },
-  { id: "min_chapters", title: "Minimum chapters", type: "text", placeholder: "e.g. 50", default: "" },
+  {
+    id: "min_chapters",
+    title: "Minimum chapters",
+    type: "text",
+    placeholder: "e.g. 50",
+    default: "",
+  },
   { id: "adult", title: "Include adult content", type: "checkbox", default: false },
   { id: "official", title: "Official translations only", type: "checkbox", default: false },
 ];
@@ -139,7 +151,9 @@ class ScraperError extends Error {
 }
 
 function asRecord(value: unknown, fallback: RecordObject = {}): RecordObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as RecordObject) : fallback;
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as RecordObject)
+    : fallback;
 }
 
 function asArray(value: unknown, fallback: unknown[] = []): unknown[] {
@@ -187,7 +201,9 @@ function runExport<T>(fn: () => T): string {
     if (error instanceof SyntaxError || error instanceof TypeError) {
       return JSON.stringify(fail("PARSING_ERROR", error.message));
     }
-    return JSON.stringify(fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)));
+    return JSON.stringify(
+      fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)),
+    );
   }
 }
 
@@ -274,7 +290,8 @@ function searchUrl(query: string, page: number, filters: RecordObject): string {
   const year = Number(asString(filters["year"]).trim());
   if (Number.isInteger(year) && year > 0) clauses.push(`releaseYear:=[${year}]`);
   const minChapters = Number(asString(filters["min_chapters"]).trim());
-  if (Number.isInteger(minChapters) && minChapters > 0) clauses.push(`chapterCount:>=${minChapters}`);
+  if (Number.isInteger(minChapters) && minChapters > 0)
+    clauses.push(`chapterCount:>=${minChapters}`);
   if (filters["adult"] === true) clauses.push("isAdult:=true");
   if (filters["official"] === true) clauses.push("officialTranslation:=true");
 
@@ -349,7 +366,9 @@ export function get_details(): I32 {
       if (id.length === 0) {
         throw new ScraperError("NOT_FOUND", "empty manga locator");
       }
-      const page = asRecord(requestJson(`${WEB}/api/manga/page?id=${encodeURIComponent(id)}`)["mangaPage"]);
+      const page = asRecord(
+        requestJson(`${WEB}/api/manga/page?id=${encodeURIComponent(id)}`)["mangaPage"],
+      );
       if (asString(page["id"]).length === 0) {
         throw new ScraperError("NOT_FOUND", `no title for ${id}`);
       }
@@ -363,7 +382,10 @@ export function get_details(): I32 {
       if (synopsis.length > 0) details.description = synopsis;
       const otherNames = asArray(page["otherNames"])
         .map((name) => asString(name).trim())
-        .filter((name, index, all) => name.length > 0 && name !== details.title && all.indexOf(name) === index);
+        .filter(
+          (name, index, all) =>
+            name.length > 0 && name !== details.title && all.indexOf(name) === index,
+        );
       if (otherNames.length > 0) details.altTitles = otherNames;
       const authors = asArray(page["authors"]).map((entry) => asRecord(entry));
       const byType = (type: string): string[] =>
@@ -382,7 +404,9 @@ export function get_details(): I32 {
       const cover = posterOf(page);
       if (cover) details.coverUrl = cover;
 
-      const chapters = asRecord(requestJson(`${WEB}/api/manga/allChapters?mangaId=${encodeURIComponent(id)}`));
+      const chapters = asRecord(
+        requestJson(`${WEB}/api/manga/allChapters?mangaId=${encodeURIComponent(id)}`),
+      );
       const scanlators = scanlatorMap(page);
       details.chapters = asArray(chapters["chapters"])
         .map((entry): ChapterItem | null => {
@@ -392,7 +416,9 @@ export function get_details(): I32 {
           if (chapterId.length === 0) return null;
           const item: ChapterItem = {
             id: `${id}/${chapterId}`,
-            number: Number.isFinite(number) ? number : parseChapterNumber(asString(chapter["title"])),
+            number: Number.isFinite(number)
+              ? number
+              : parseChapterNumber(asString(chapter["title"])),
             language: "en",
           };
           const title = asString(chapter["title"]).trim();

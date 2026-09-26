@@ -1,8 +1,8 @@
 {
   "name": "@makinuki/source-mangaball",
   "version": "0.1.0",
-  "description": "Manga Ball source plugin (HTML scraping based)",
   "private": true,
+  "description": "Manga Ball source plugin (HTML scraping based)",
   "type": "module",
   "dependencies": {
     "@makinuki/pdk": "^1.4.0"

@@ -30,9 +30,17 @@ const { values, positionals } = parseArgs({
   },
 });
 
-const targets = positionals.length > 0 ? positionals : readdirSync(distDir).filter((f) => f.endsWith(".wasm")).map((f) => f.slice(0, -5)).sort();
+const targets =
+  positionals.length > 0
+    ? positionals
+    : readdirSync(distDir)
+        .filter((f) => f.endsWith(".wasm"))
+        .map((f) => f.slice(0, -5))
+        .sort();
 if (targets.length === 0) {
-  console.error("usage: node scripts/run-tests.ts [source ...] [--search <q>] [--filters <json>] [--page <n>] [--details <id>] [--pages <id>] [--expect <id>]");
+  console.error(
+    "usage: node scripts/run-tests.ts [source ...] [--search <q>] [--filters <json>] [--page <n>] [--details <id>] [--pages <id>] [--expect <id>]",
+  );
   console.error("(no source: test every plugin in dist/)");
   process.exit(1);
 }
@@ -62,7 +70,9 @@ function fail(name: string, info: string) {
 }
 
 function schemaErrors(validate: ValidateFunction): string {
-  const shown = (validate.errors ?? []).slice(0, 3).map((e) => `${e.instancePath || "/"} ${e.message}`);
+  const shown = (validate.errors ?? [])
+    .slice(0, 3)
+    .map((e) => `${e.instancePath || "/"} ${e.message}`);
   const rest = (validate.errors?.length ?? 0) - shown.length;
   return `${shown.join("; ")}${rest > 0 ? `; and ${rest} more` : ""}`;
 }
@@ -72,7 +82,9 @@ addFormats(ajv);
 // Register every schema before compiling any: payload schemas carry
 // cross-file $refs (details.schema.json points into manga.schema.json),
 // and ajv resolves those only against schemas already registered.
-const schemaFiles = readdirSync(specDir).filter((f) => f.endsWith(".schema.json") && f !== "index.schema.json");
+const schemaFiles = readdirSync(specDir).filter(
+  (f) => f.endsWith(".schema.json") && f !== "index.schema.json",
+);
 const validators = new Map<string, ValidateFunction>();
 for (const file of schemaFiles) {
   const schema = JSON.parse(readFileSync(join(specDir, file), "utf8")) as object;
@@ -89,8 +101,13 @@ const validate = (name: string): ValidateFunction => {
 
 function checkEnvelope(data: unknown): string | null {
   if (typeof data !== "object" || data === null) return "plugin returned non-object";
-  const env = data as { ok?: boolean; error?: { code?: unknown; message?: unknown }; data?: unknown };
-  if (env.ok !== true) return `ok:false (code=${String(env.error?.code ?? "?")}, message=${String(env.error?.message ?? "?")})`;
+  const env = data as {
+    ok?: boolean;
+    error?: { code?: unknown; message?: unknown };
+    data?: unknown;
+  };
+  if (env.ok !== true)
+    return `ok:false (code=${String(env.error?.code ?? "?")}, message=${String(env.error?.message ?? "?")})`;
   if (!("data" in env)) return "envelope missing data";
   return null;
 }
@@ -101,11 +118,19 @@ function checkEnvelope(data: unknown): string | null {
 // rather than a failure; every other outcome still fails the run, so a
 // plugin that starts returning the wrong error or a malformed envelope is
 // still caught.
-function gatedSkip(name: string, envErr: string, result: { ok: boolean; error?: unknown }, gateable: boolean): boolean {
-  const code = result.ok === false ? String((result.error as { code?: unknown } | undefined)?.code ?? "") : "";
+function gatedSkip(
+  name: string,
+  envErr: string,
+  result: { ok: boolean; error?: unknown },
+  gateable: boolean,
+): boolean {
+  const code =
+    result.ok === false ? String((result.error as { code?: unknown } | undefined)?.code ?? "") : "";
   if (!gateable || code !== "CLOUDFLARE_BLOCKED") return false;
   skipped = true;
-  console.log(`SKIP ${name}: ${envErr} (declared challenge-gated; a browser solves this, the runner cannot)`);
+  console.log(
+    `SKIP ${name}: ${envErr} (declared challenge-gated; a browser solves this, the runner cannot)`,
+  );
   return true;
 }
 
@@ -153,7 +178,11 @@ function requireAbsoluteUrls(items: Array<Record<string, unknown>>, what: string
 // instead of surfacing as a passing plugin with unscannable pages.
 function assertScrambleContract(): void {
   const v = validate("page.schema.json");
-  const bare: Record<string, unknown> = { index: 0, url: "https://example.invalid/0.jpg", isScrambled: true };
+  const bare: Record<string, unknown> = {
+    index: 0,
+    url: "https://example.invalid/0.jpg",
+    isScrambled: true,
+  };
   if (v({ ...bare })) {
     console.error("FAIL schema-contract: scrambled page without metadata passed validation");
     process.exit(1);
@@ -163,7 +192,9 @@ function assertScrambleContract(): void {
     metadata: { layout: "slice", rows: 2, cols: 2, tileW: 100, tileH: 100, order: [0, 1, 2, 3] },
   };
   if (!v(described)) {
-    console.error(`FAIL schema-contract: scrambled page with metadata rejected (${schemaErrors(v)})`);
+    console.error(
+      `FAIL schema-contract: scrambled page with metadata rejected (${schemaErrors(v)})`,
+    );
     process.exit(1);
   }
 }
@@ -190,7 +221,10 @@ async function runSource(source: string): Promise<boolean> {
   // Only ABI-level optional exports are reported; the module also carries
   // runtime shims (memory, extism host bindings) that are not plugin API.
   const optional = OPTIONAL_EXPORTS.filter((name) => exports.includes(name));
-  pass("exports", WASM_EXPORTS.join(" ") + (optional.length > 0 ? ` (+${optional.join(",")})` : ""));
+  pass(
+    "exports",
+    WASM_EXPORTS.join(" ") + (optional.length > 0 ? ` (+${optional.join(",")})` : ""),
+  );
 
   const plugin = await loadPlugin(wasmPath);
 
@@ -206,7 +240,10 @@ async function runSource(source: string): Promise<boolean> {
       fail("get_metadata", `abiVersion must be 1, got ${String(metadata.abiVersion)}`);
       return false;
     }
-    pass("get_metadata", `${String(metadata.id)} v${String(metadata.version)} lang=${String(metadata.lang)}`);
+    pass(
+      "get_metadata",
+      `${String(metadata.id)} v${String(metadata.version)} lang=${String(metadata.lang)}`,
+    );
   }
 
   const filtersRaw = (await plugin.call("get_filters", "")).text();
@@ -217,14 +254,22 @@ async function runSource(source: string): Promise<boolean> {
       fail("get_filters", schemaErrors(v));
       return false;
     }
-    const dup = requireUnique(filters.map((f) => String(f.id ?? "")), "filters");
+    const dup = requireUnique(
+      filters.map((f) => String(f.id ?? "")),
+      "filters",
+    );
     if (dup) {
       fail("get_filters", dup);
       return false;
     }
     const counts: Record<string, number> = {};
     for (const f of filters) counts[String(f.type)] = (counts[String(f.type)] ?? 0) + 1;
-    pass("get_filters", `${filters.length} (${Object.entries(counts).map(([t, n]) => `${t}x${n}`).join(", ")})`);
+    pass(
+      "get_filters",
+      `${filters.length} (${Object.entries(counts)
+        .map(([t, n]) => `${t}x${n}`)
+        .join(", ")})`,
+    );
   }
 
   // get_settings is optional; a plugin without it still passes. When present
@@ -245,7 +290,10 @@ async function runSource(source: string): Promise<boolean> {
       return false;
     }
     const list = settings as Array<Record<string, unknown>>;
-    const dup = requireUnique(list.map((s) => String(s.id ?? "")), "settings");
+    const dup = requireUnique(
+      list.map((s) => String(s.id ?? "")),
+      "settings",
+    );
     if (dup) {
       fail("get_settings", dup);
       return false;
@@ -263,8 +311,9 @@ async function runSource(source: string): Promise<boolean> {
     for (const s of list) kinds[String(s.type)] = (kinds[String(s.type)] ?? 0) + 1;
     pass(
       "get_settings",
-      `${list.length} (${Object.entries(kinds).map(([t, n]) => `${t}x${n}`).join(", ")})` +
-        (baseUrl ? " base_url=text" : "")
+      `${list.length} (${Object.entries(kinds)
+        .map(([t, n]) => `${t}x${n}`)
+        .join(", ")})` + (baseUrl ? " base_url=text" : ""),
     );
   }
 
@@ -295,9 +344,15 @@ async function runSource(source: string): Promise<boolean> {
     }
   })();
 
-  let searchData: { items: Array<Record<string, unknown>>; hasNextPage: boolean; page: number } | null = null;
+  let searchData: {
+    items: Array<Record<string, unknown>>;
+    hasNextPage: boolean;
+    page: number;
+  } | null = null;
   {
-    const raw = (await plugin.call("search", JSON.stringify({ query, page, filters: filtersJson }))).text();
+    const raw = (
+      await plugin.call("search", JSON.stringify({ query, page, filters: filtersJson }))
+    ).text();
     const result = JSON.parse(raw) as { ok: boolean; data?: unknown; error?: unknown };
     const envErr = checkEnvelope(result);
     if (envErr) {
@@ -310,9 +365,16 @@ async function runSource(source: string): Promise<boolean> {
       fail("search", schemaErrors(v));
       return false;
     }
-    const data = result.data as { items: Array<Record<string, unknown>>; hasNextPage: boolean; page: number };
+    const data = result.data as {
+      items: Array<Record<string, unknown>>;
+      hasNextPage: boolean;
+      page: number;
+    };
     const items = data.items;
-    const dup = requireUnique(items.map((i) => String(i.id ?? "")), "search items");
+    const dup = requireUnique(
+      items.map((i) => String(i.id ?? "")),
+      "search items",
+    );
     if (dup) {
       fail("search", dup);
       return false;
@@ -330,7 +392,7 @@ async function runSource(source: string): Promise<boolean> {
     pass(
       "search",
       `"${query}" page=${data.page} items=${items.length} hasNextPage=${data.hasNextPage}` +
-        (opts.expect ? " expect=found" : "")
+        (opts.expect ? " expect=found" : ""),
     );
   }
 
@@ -338,9 +400,10 @@ async function runSource(source: string): Promise<boolean> {
   // that carries chapters. Search ranking is data-driven, so the top hit can
   // be a title whose chapters are unavailable; probing a few candidates keeps
   // the default run stable without pinning a fixture that would rot.
-  const candidates = (opts.details ?? fixture.details)
-    ? [String(opts.details ?? fixture.details)]
-    : searchData.items.slice(0, DETAILS_PROBES).map((item) => String(item.id));
+  const candidates =
+    (opts.details ?? fixture.details)
+      ? [String(opts.details ?? fixture.details)]
+      : searchData.items.slice(0, DETAILS_PROBES).map((item) => String(item.id));
   if (candidates.length === 0) {
     fail("get_details", "no id available (search returned no items and no --details given)");
     return false;
@@ -375,16 +438,24 @@ async function runSource(source: string): Promise<boolean> {
     // a differing id is accepted only when the reported id resolves back to the
     // same title.
     if (details.id !== candidate) {
-      const roundTrip = JSON.parse((await plugin.call("get_details", JSON.stringify(details.id))).text()) as {
+      const roundTrip = JSON.parse(
+        (await plugin.call("get_details", JSON.stringify(details.id))).text(),
+      ) as {
         ok: boolean;
         data?: { id?: string; title?: string };
       };
       if (!roundTrip.ok || roundTrip.data?.title !== details.title) {
-        fail("get_details", `id normalization unresolved: requested ${candidate}, got ${details.id}`);
+        fail(
+          "get_details",
+          `id normalization unresolved: requested ${candidate}, got ${details.id}`,
+        );
         return false;
       }
     }
-    const dup = requireUnique(details.chapters.map((c) => String(c.id ?? "")), "chapters");
+    const dup = requireUnique(
+      details.chapters.map((c) => String(c.id ?? "")),
+      "chapters",
+    );
     if (dup) {
       fail("get_details", dup);
       return false;
@@ -403,7 +474,7 @@ async function runSource(source: string): Promise<boolean> {
   pass(
     "get_details",
     `${detailsId} chapters=${chapters.length} status=${detailsStatus}` +
-      (probed > 1 ? ` after ${probed} candidates` : "")
+      (probed > 1 ? ` after ${probed} candidates` : ""),
   );
 
   const pagesId = opts.pages ?? fixture.pages ?? (chapters[0]?.id as string | undefined);
@@ -425,7 +496,14 @@ async function runSource(source: string): Promise<boolean> {
       index: number;
       url: string;
       isScrambled: boolean;
-      metadata?: { layout: string; rows: number; cols: number; tileW: number; tileH: number; order: number[] };
+      metadata?: {
+        layout: string;
+        rows: number;
+        cols: number;
+        tileW: number;
+        tileH: number;
+        order: number[];
+      };
     }>;
     const v = validate("pages.schema.json");
     if (!v(pages)) {
@@ -445,12 +523,18 @@ async function runSource(source: string): Promise<boolean> {
           return false;
         }
         if (m.order.length !== m.rows * m.cols || new Set(m.order).size !== m.order.length) {
-          fail("get_pages", `page[${i}] order must be a permutation (rows*cols=${m.rows * m.cols}, got ${m.order.length})`);
+          fail(
+            "get_pages",
+            `page[${i}] order must be a permutation (rows*cols=${m.rows * m.cols}, got ${m.order.length})`,
+          );
           return false;
         }
       }
     }
-    const relative = requireAbsoluteUrls(pages as unknown as Array<Record<string, unknown>>, "pages");
+    const relative = requireAbsoluteUrls(
+      pages as unknown as Array<Record<string, unknown>>,
+      "pages",
+    );
     if (relative) {
       fail("get_pages", relative);
       return false;
@@ -481,7 +565,11 @@ async function runSource(source: string): Promise<boolean> {
   if (targets.length > 1) {
     console.log("==================================================================");
     const suffix = gated > 0 ? `, ${gated} challenge-gated` : "";
-    console.log(allOk ? `ALL SOURCES PASS (${targets.length}${suffix})` : `SOME SOURCES FAILED (${targets.length})`);
+    console.log(
+      allOk
+        ? `ALL SOURCES PASS (${targets.length}${suffix})`
+        : `SOME SOURCES FAILED (${targets.length})`,
+    );
   }
   process.exitCode = allOk ? 0 : 1;
 })().catch((err) => {

@@ -84,7 +84,9 @@ class ScraperError extends Error {
 }
 
 function asRecord(value: unknown): Json {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Json) : {};
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Json)
+    : {};
 }
 
 function asArray(value: unknown): unknown[] {
@@ -121,7 +123,9 @@ function runExport<T>(fn: () => T): string {
         : mapHttpStatus(error.status ?? 0);
       return JSON.stringify(fail(code, error.message));
     }
-    return JSON.stringify(fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)));
+    return JSON.stringify(
+      fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)),
+    );
   }
 }
 
@@ -130,7 +134,10 @@ interface Page {
   body: string;
 }
 
-function request(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Page {
+function request(
+  url: string,
+  init?: { method?: string; headers?: Record<string, string>; body?: string },
+): Page {
   const response = fetch({
     url,
     method: init?.method ?? "GET",
@@ -140,7 +147,7 @@ function request(url: string, init?: { method?: string; headers?: Record<string,
       "Sec-Fetch-Mode": "navigate",
       "Sec-Fetch-Site": "none",
       "Sec-Fetch-User": "?1",
-      ...(init?.headers ?? {}),
+      ...init?.headers,
     },
     body: init?.body ?? null,
   });
@@ -163,7 +170,9 @@ function listPath(page: number): string {
 }
 
 function formBody(entries: Array<[string, string]>): string {
-  return entries.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join("&");
+  return entries
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join("&");
 }
 
 function currentYear(): number {
@@ -175,7 +184,10 @@ function year(value: string, label: string): number {
   if (trimmed.length === 0) return 0;
   const parsed = Number(trimmed);
   if (!Number.isInteger(parsed) || parsed < MIN_YEAR || parsed > currentYear()) {
-    throw new ScraperError("PARSING_ERROR", `${label} must be a whole year between ${MIN_YEAR} and ${currentYear()}`);
+    throw new ScraperError(
+      "PARSING_ERROR",
+      `${label} must be a whole year between ${MIN_YEAR} and ${currentYear()}`,
+    );
   }
   return parsed;
 }
@@ -259,7 +271,9 @@ function locatorPath(input: string): string {
 }
 
 function pageListItem($: ReturnType<typeof parseHTML>, label: string): string {
-  const entry = $(".page__list > li").filter((_index, element) => $(element).children("div").first().text().includes(label));
+  const entry = $(".page__list > li").filter((_index, element) =>
+    $(element).children("div").first().text().includes(label),
+  );
   return cleanText(entry.first().children("a").first().text());
 }
 
@@ -309,9 +323,10 @@ export function search(): I32 {
   Host.outputString(
     runExport(() => {
       const { url, body } = catalogueUrl(input.query ?? "", page, asRecord(input.filters));
-      const result = body.length > 0
-        ? request(url, { method: "POST", headers: FORM_HEADERS, body })
-        : request(url);
+      const result =
+        body.length > 0
+          ? request(url, { method: "POST", headers: FORM_HEADERS, body })
+          : request(url);
       return parseList(result.body, page);
     }),
   );
@@ -363,7 +378,9 @@ export function get_details(): I32 {
       details.genres = genres;
 
       const releaseEntry = $(".page__list > li")
-        .filter((_index, element) => $(element).children("div").first().text().includes("Release type"))
+        .filter((_index, element) =>
+          $(element).children("div").first().text().includes("Release type"),
+        )
         .first();
       const releaseLabel = releaseEntry.children("div").first().text();
       const releaseType = cleanText(releaseEntry.text().replace(releaseLabel, "")).toLowerCase();
@@ -396,7 +413,10 @@ export function get_pages(): I32 {
   const input = JSON.parse(Host.inputString()) as string;
   Host.outputString(
     runExport(() => {
-      const locator = input.trim().replace(/^https?:\/\/[^/]+/, "").replace(/^\/+/, "");
+      const locator = input
+        .trim()
+        .replace(/^https?:\/\/[^/]+/, "")
+        .replace(/^\/+/, "");
       const marker = locator.indexOf("reader/");
       if (marker < 0) {
         throw new ScraperError("NOT_FOUND", "chapter locator is not a reader path");
@@ -408,7 +428,10 @@ export function get_pages(): I32 {
       }
       const payload = request(READER_API, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json, text/plain, */*" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json, text/plain, */*",
+        },
         body: JSON.stringify({ news_id: newsID, chapter_id: chapterID }),
       }).body;
       let parsed: unknown;

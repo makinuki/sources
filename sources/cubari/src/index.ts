@@ -124,7 +124,9 @@ class ScraperError extends Error {
 }
 
 function asRecord(value: unknown): Json {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Json) : {};
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Json)
+    : {};
 }
 
 function asArray(value: unknown): unknown[] {
@@ -145,7 +147,11 @@ function mapHttpStatus(status: number): ErrorCode {
 }
 
 function get(url: string): string {
-  const response = fetch({ url, method: "GET", headers: { Accept: "application/json, text/plain, */*" } });
+  const response = fetch({
+    url,
+    method: "GET",
+    headers: { Accept: "application/json, text/plain, */*" },
+  });
   if (response.status < 200 || response.status >= 300) {
     throw new ScraperError(mapHttpStatus(response.status), `HTTP ${response.status}`);
   }
@@ -175,7 +181,9 @@ function runExport<T>(fn: () => T): string {
         : mapHttpStatus(error.status ?? 0);
       return JSON.stringify(fail(code, error.message));
     }
-    return JSON.stringify(fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)));
+    return JSON.stringify(
+      fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)),
+    );
   }
 }
 
@@ -246,7 +254,11 @@ function resolveDeepLink(query: string): { source: string; slug: string } | null
   if (segments.length >= 3 && host.endsWith("cubari.moe")) {
     return { source: segments[1], slug: segments[2] };
   }
-  if (segments.length >= 2 && host.endsWith("imgur.com") && (segments[0] === "a" || segments[0] === "gallery")) {
+  if (
+    segments.length >= 2 &&
+    host.endsWith("imgur.com") &&
+    (segments[0] === "a" || segments[0] === "gallery")
+  ) {
     return { source: "imgur", slug: segments[1] };
   }
   if (segments.length >= 2 && host.endsWith("reddit.com") && segments[0] === "gallery") {
@@ -356,7 +368,11 @@ export function search(): I32 {
         return empty;
       }
       const series = getJson(seriesUrl(locator));
-      const result: PageResult<MangaItem> = { page, hasNextPage: false, items: [mangaFrom(series, locator)] };
+      const result: PageResult<MangaItem> = {
+        page,
+        hasNextPage: false,
+        items: [mangaFrom(series, locator)],
+      };
       return result;
     }),
   );
@@ -388,13 +404,14 @@ export function get_details(): I32 {
       const tagIndex = description.indexOf("Tags: ");
       const summary = cleanText(tagIndex >= 0 ? description.slice(0, tagIndex) : description);
       if (summary.length > 0) details.description = summary;
-      const genres = tagIndex >= 0
-        ? description
-            .slice(tagIndex + "Tags: ".length)
-            .split(",")
-            .map((entry) => cleanText(entry))
-            .filter((entry) => entry.length > 0)
-        : [];
+      const genres =
+        tagIndex >= 0
+          ? description
+              .slice(tagIndex + "Tags: ".length)
+              .split(",")
+              .map((entry) => cleanText(entry))
+              .filter((entry) => entry.length > 0)
+          : [];
       if (genres.length > 0) details.genres = genres;
       const author = cleanText(asString(series["author"]));
       if (author.length > 0) details.authors = [author];
@@ -484,7 +501,10 @@ export function get_pages(): I32 {
         const payload = JSON.parse(get(absoluteSiteUrl(entry))) as unknown;
         return pagesFromPayload(payload);
       }
-      throw new ScraperError("PARSING_ERROR", "chapter entry is neither a page list nor a page list URL");
+      throw new ScraperError(
+        "PARSING_ERROR",
+        "chapter entry is neither a page list nor a page list URL",
+      );
     }),
   );
   return 0;

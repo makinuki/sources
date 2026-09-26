@@ -226,9 +226,21 @@ const FILTERS: FilterSchema[] = [
   { id: "genres", title: "Genres", type: "tri_state", options: GENRES },
   { id: "themes", title: "Themes", type: "tri_state", options: THEMES },
   { id: "types", title: "Type", type: "tri_state", options: TYPES },
-  { id: "year_from", title: "Release year from", type: "text", placeholder: "e.g. 2015", default: "" },
+  {
+    id: "year_from",
+    title: "Release year from",
+    type: "text",
+    placeholder: "e.g. 2015",
+    default: "",
+  },
   { id: "year_to", title: "Release year to", type: "text", placeholder: "e.g. 2024", default: "" },
-  { id: "min_chapters", title: "Minimum chapters", type: "text", placeholder: "e.g. 50", default: "" },
+  {
+    id: "min_chapters",
+    title: "Minimum chapters",
+    type: "text",
+    placeholder: "e.g. 50",
+    default: "",
+  },
   { id: "author", title: "Author or artist", type: "text", placeholder: "", default: "" },
 ];
 
@@ -247,7 +259,9 @@ class ScraperError extends Error {
 }
 
 function asRecord(value: unknown): Json {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Json) : {};
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Json)
+    : {};
 }
 
 function asArray(value: unknown): unknown[] {
@@ -423,7 +437,9 @@ function runExport<T>(fn: () => T): string {
         : mapHttpStatus(error.status ?? 0);
       return JSON.stringify(fail(code, error.message));
     }
-    return JSON.stringify(fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)));
+    return JSON.stringify(
+      fail("PARSING_ERROR", error instanceof Error ? error.message : String(error)),
+    );
   }
 }
 
@@ -474,7 +490,8 @@ function seriesLocator(input: string): string {
   const path = value.startsWith("http") ? new URL(value).pathname : value.split(/[?#]/)[0];
   const segments = path.split("/").filter((segment) => segment.length > 0);
   const index = segments.findIndex((segment) => segment === "title" || segment === "manga");
-  const raw = index >= 0 && index + 1 < segments.length ? segments[index + 1] : segments[segments.length - 1];
+  const raw =
+    index >= 0 && index + 1 < segments.length ? segments[index + 1] : segments[segments.length - 1];
   const candidate = typeof raw === "string" ? raw : "";
   if (candidate.includes(".")) return candidate.slice(candidate.lastIndexOf(".") + 1);
   return candidate.split("-")[0];
@@ -492,11 +509,19 @@ function chapterLocator(input: string): { segment: string; id: string } {
   const path = value.startsWith("http") ? new URL(value).pathname : value.split(/[?#]/)[0];
   const segments = path.split("/").filter((segment) => segment.length > 0);
   const volumeIndex = segments.lastIndexOf("volume");
-  if (volumeIndex >= 0 && volumeIndex + 1 < segments.length && /^\d+$/.test(segments[volumeIndex + 1])) {
+  if (
+    volumeIndex >= 0 &&
+    volumeIndex + 1 < segments.length &&
+    /^\d+$/.test(segments[volumeIndex + 1])
+  ) {
     return { segment: "volumes", id: segments[volumeIndex + 1] };
   }
   const chapterIndex = segments.lastIndexOf("chapter");
-  if (chapterIndex >= 0 && chapterIndex + 1 < segments.length && /^\d+$/.test(segments[chapterIndex + 1])) {
+  if (
+    chapterIndex >= 0 &&
+    chapterIndex + 1 < segments.length &&
+    /^\d+$/.test(segments[chapterIndex + 1])
+  ) {
     return { segment: "chapters", id: segments[chapterIndex + 1] };
   }
   const separator = value.indexOf(":");
@@ -516,7 +541,12 @@ function chapterLocator(input: string): { segment: string; id: string } {
   return { segment: "chapters", id };
 }
 
-function searchUrl(query: string, page: number, filters: Json, authorId: string | null): { path: string; params: Param[] } {
+function searchUrl(
+  query: string,
+  page: number,
+  filters: Json,
+  authorId: string | null,
+): { path: string; params: Param[] } {
   const params: Param[] = [
     ["page", String(page)],
     ["limit", String(SEARCH_LIMIT)],
@@ -658,7 +688,9 @@ export function get_details(): I32 {
       if (genres.length > 0) details.genres = genres;
       const tags = [
         ...asArray(data["themes"]).map((entry) => cleanText(asString(asRecord(entry)["title"]))),
-        ...asArray(data["demographics"]).map((entry) => cleanText(asString(asRecord(entry)["title"]))),
+        ...asArray(data["demographics"]).map((entry) =>
+          cleanText(asString(asRecord(entry)["title"])),
+        ),
       ].filter((entry) => entry.length > 0);
       if (tags.length > 0) details.tags = tags;
 
@@ -666,7 +698,9 @@ export function get_details(): I32 {
       // The title payload publishes the canonical series path (with the slug),
       // which the site's own chapter links extend as /chapter/<id>.
       const seriesPathRaw = asString(data["url"]);
-      const seriesPath = seriesPathRaw.startsWith("/") ? seriesPathRaw : `/title/${encodeURIComponent(hid)}`;
+      const seriesPath = seriesPathRaw.startsWith("/")
+        ? seriesPathRaw
+        : `/title/${encodeURIComponent(hid)}`;
       const collected: ChapterItem[] = [];
       let chapterPage = 1;
       let lastPage = 1;
@@ -683,7 +717,11 @@ export function get_details(): I32 {
           const number = asNumber(record["number"]);
           if (id === null) continue;
           const name = cleanText(asString(record["name"]));
-          const item: ChapterItem = { id: `c:${id}`, number, url: `${siteBase()}${seriesPath}/chapter/${id}` };
+          const item: ChapterItem = {
+            id: `c:${id}`,
+            number,
+            url: `${siteBase()}${seriesPath}/chapter/${id}`,
+          };
           const language = asString(record["language"]);
           if (language.length > 0) item.language = language;
           if (name.length > 0) item.title = name;

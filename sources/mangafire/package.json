@@ -1,8 +1,8 @@
 {
   "name": "@makinuki/source-mangafire",
   "version": "0.1.0",
-  "description": "MangaFire source plugin (JSON API based)",
   "private": true,
+  "description": "MangaFire source plugin (JSON API based)",
   "type": "module",
   "dependencies": {
     "@makinuki/pdk": "^1.4.0"

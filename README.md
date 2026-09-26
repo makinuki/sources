@@ -145,4 +145,3 @@ releases cannot overwrite each other on the pages repository. Versions
 never move backwards: every release ships under a new
 `<id>-v<version>.wasm` name, and a deployment that would downgrade any
 plugin relative to the live registry fails.
-

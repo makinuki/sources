@@ -1,8 +1,8 @@
 {
   "name": "@makinuki/source-batcave",
   "version": "0.1.0",
-  "description": "BatCave source plugin (HTML scraping based)",
   "private": true,
+  "description": "BatCave source plugin (HTML scraping based)",
   "type": "module",
   "dependencies": {
     "@makinuki/pdk": "^1.4.0"

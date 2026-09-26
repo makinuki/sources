@@ -43,7 +43,10 @@ async function main(): Promise<void> {
   for (const file of wasmFiles) {
     const bytes = readFileSync(join(distDir, file));
     const plugin = await loadPlugin(join(distDir, file));
-    const metadata = JSON.parse((await plugin.call("get_metadata", "")).text()) as Record<string, unknown>;
+    const metadata = JSON.parse((await plugin.call("get_metadata", "")).text()) as Record<
+      string,
+      unknown
+    >;
     const id = String(metadata.id);
     const version = String(metadata.version);
     const sha256 = createHash("sha256").update(bytes).digest("hex");
