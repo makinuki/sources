@@ -4,6 +4,14 @@ All notable changes to the mangafire source plugin are recorded here. The plugin
 version follows semver; contract-level changes follow the ABI versioning policy
 defined in the spec repository (SPECIFICATION.md, Section 7).
 
+## [Unreleased]
+
+- Attach the chapter page URL to every chapter entry, so a host can open
+  the chapter on the site.
+- Resolve the emitted chapter page URL back through get_pages.
+- Fetch the chapter list through the last page the source reports instead
+  of stopping at 20 pages.
+
 ## [1.1.0] - 2026-09-26
 
 - Emit every chapter language: the chapter list no longer asks for English

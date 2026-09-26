@@ -22,7 +22,6 @@ import { MakiNukiHttpError } from "@makinuki/pdk";
 const WEB = "https://mangafire.to";
 const SEARCH_LIMIT = 50;
 const CHAPTER_PAGE_SIZE = 200;
-const CHAPTER_PAGE_CAP = 20;
 const ERROR_CODES: ErrorCode[] = [
   "CLOUDFLARE_BLOCKED",
   "RATE_LIMITED",
@@ -482,11 +481,24 @@ function seriesLocator(input: string): string {
 }
 
 // A chapter locator is accepted as the published `<kind>:<id>` form, as a bare
-// numeric id, or as the site path a backup records:
-// `<manga>/<id>-chapter-<n>-<lang>` for a chapter, `<manga>/volume/<id>` for a
-// volume. The numeric id is recovered from the last path segment.
+// numeric id, or as the site page path: either the legacy
+// `<manga>/<id>-chapter-<n>-<lang>` form or the canonical
+// `/title/<hid>-<slug>/chapter/<id>` form the plugin emits, relative or absolute.
+// The numeric id is recovered from the path segments.
 function chapterLocator(input: string): { segment: string; id: string } {
   const value = input.trim();
+  // An absolute URL loses its scheme and host first, otherwise the colon in
+  // `https:` reads as the locator separator.
+  const path = value.startsWith("http") ? new URL(value).pathname : value.split(/[?#]/)[0];
+  const segments = path.split("/").filter((segment) => segment.length > 0);
+  const volumeIndex = segments.lastIndexOf("volume");
+  if (volumeIndex >= 0 && volumeIndex + 1 < segments.length && /^\d+$/.test(segments[volumeIndex + 1])) {
+    return { segment: "volumes", id: segments[volumeIndex + 1] };
+  }
+  const chapterIndex = segments.lastIndexOf("chapter");
+  if (chapterIndex >= 0 && chapterIndex + 1 < segments.length && /^\d+$/.test(segments[chapterIndex + 1])) {
+    return { segment: "chapters", id: segments[chapterIndex + 1] };
+  }
   const separator = value.indexOf(":");
   if (separator > 0) {
     const kind = value.slice(0, separator);
@@ -495,12 +507,6 @@ function chapterLocator(input: string): { segment: string; id: string } {
       throw new ScraperError("NOT_FOUND", "chapter locator carries no numeric id");
     }
     return { segment: kind === "v" || kind === "volume" ? "volumes" : "chapters", id };
-  }
-  const path = value.startsWith("http") ? new URL(value).pathname : value.split(/[?#]/)[0];
-  const segments = path.split("/").filter((segment) => segment.length > 0);
-  const volumeIndex = segments.lastIndexOf("volume");
-  if (volumeIndex >= 0 && volumeIndex + 1 < segments.length && /^\d+$/.test(segments[volumeIndex + 1])) {
-    return { segment: "volumes", id: segments[volumeIndex + 1] };
   }
   const last = segments.length > 0 ? segments[segments.length - 1] : "";
   const id = last.includes("-") ? last.slice(0, last.indexOf("-")) : last;
@@ -657,6 +663,10 @@ export function get_details(): I32 {
       if (tags.length > 0) details.tags = tags;
 
       const hid = details.id;
+      // The title payload publishes the canonical series path (with the slug),
+      // which the site's own chapter links extend as /chapter/<id>.
+      const seriesPathRaw = asString(data["url"]);
+      const seriesPath = seriesPathRaw.startsWith("/") ? seriesPathRaw : `/title/${encodeURIComponent(hid)}`;
       const collected: ChapterItem[] = [];
       let chapterPage = 1;
       let lastPage = 1;
@@ -673,7 +683,7 @@ export function get_details(): I32 {
           const number = asNumber(record["number"]);
           if (id === null) continue;
           const name = cleanText(asString(record["name"]));
-          const item: ChapterItem = { id: `c:${id}`, number };
+          const item: ChapterItem = { id: `c:${id}`, number, url: `${siteBase()}${seriesPath}/chapter/${id}` };
           const language = asString(record["language"]);
           if (language.length > 0) item.language = language;
           if (name.length > 0) item.title = name;
@@ -686,7 +696,7 @@ export function get_details(): I32 {
         const meta = asRecord(chapterBody["meta"]);
         lastPage = asNumber(meta["lastPage"]) ?? chapterPage;
         chapterPage++;
-      } while (chapterPage <= lastPage && chapterPage <= CHAPTER_PAGE_CAP);
+      } while (chapterPage <= lastPage);
       details.chapters = collected;
       return details;
     }),
