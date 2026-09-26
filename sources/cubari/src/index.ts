@@ -5,6 +5,7 @@ import {
   fail,
   fetch,
   ok,
+  storageGet,
   type ChapterItem,
   type ErrorCode,
   type FilterSchema,
@@ -13,6 +14,7 @@ import {
   type PageItem,
   type PageResult,
   type SearchQuery,
+  type SettingSchema,
   type SourceMetadata,
 } from "@makinuki/pdk";
 import { MakiNukiHttpError } from "@makinuki/pdk";
@@ -64,6 +66,44 @@ const metadata: SourceMetadata = {
     "raw.githubusercontent.com",
   ],
 };
+
+const SETTINGS: SettingSchema[] = [
+  {
+    id: "base_url",
+    title: "Site address",
+    description:
+      "Custom site origin. The image proxy and the third-party image hosts are unaffected by the override. Empty means the built-in address.",
+    type: "text",
+    placeholder: WEB,
+    default: WEB,
+  },
+];
+
+// A missing key means the built-in origin; an unparsable value falls back to
+// it so a bad saved value cannot break every request.
+function siteBase(): string {
+  const override = storageGet("base_url");
+  if (override && override.length > 0) {
+    try {
+      const url = new URL(override);
+      if (url.protocol === "http:" || url.protocol === "https:") return url.origin;
+    } catch {
+      // fall through to the built-in origin
+    }
+  }
+  return WEB;
+}
+
+// A chapter group value may be a site-relative path instead of an inline page
+// list. Resolving it against the site origin keeps every emitted link absolute
+// and gives get_pages a fetchable address.
+function absoluteSiteUrl(value: string): string {
+  try {
+    return new URL(value, siteBase()).toString();
+  } catch {
+    return value;
+  }
+}
 
 // Cubari serves user-curated reading lists and has no server-side catalogue
 // search, so search accepts direct reading-list URLs or the legacy
@@ -237,7 +277,7 @@ function seriesLocator(input: string): { source: string; slug: string } | null {
 }
 
 function seriesUrl(locator: { source: string; slug: string }): string {
-  return `${WEB}/read/api/${locator.source}/series/${locator.slug}/`;
+  return `${siteBase()}/read/api/${locator.source}/series/${locator.slug}/`;
 }
 
 function statusOf(value: string): MangaDetails["status"] {
@@ -268,7 +308,7 @@ function mangaFrom(series: Json, locator: { source: string; slug: string }): Man
   const item: MangaItem = {
     id: `${locator.source}/${locator.slug}`,
     title: cleanText(asString(series["title"])),
-    url: `${WEB}/read/${locator.source}/${locator.slug}`,
+    url: `${siteBase()}/read/${locator.source}/${locator.slug}`,
   };
   const cover = coverOf(series);
   if (cover) item.coverUrl = cover;
@@ -297,6 +337,11 @@ export function get_metadata(): I32 {
 
 export function get_filters(): I32 {
   Host.outputString(JSON.stringify(FILTERS));
+  return 0;
+}
+
+export function get_settings(): I32 {
+  Host.outputString(JSON.stringify(SETTINGS));
   return 0;
 }
 
@@ -371,7 +416,6 @@ export function get_details(): I32 {
           const item: ChapterItem = {
             id: `${locator.source}/${locator.slug}/${chapterKey}/${groupKey}`,
             number,
-            language: "en",
           };
           const name = cleanText(asString(groupNames[groupKey]));
           if (name.length > 0) item.scanlator = name;
@@ -385,9 +429,9 @@ export function get_details(): I32 {
             item.uploadedAt = released * 1000;
           }
           if (Array.isArray(groupValue)) {
-            item.url = `${WEB}/read/${locator.source}/${locator.slug}/${chapterKey}/${groupKey}`;
+            item.url = `${siteBase()}/read/${locator.source}/${locator.slug}/${chapterKey}/${groupKey}`;
           } else if (typeof groupValue === "string") {
-            item.url = groupValue;
+            item.url = absoluteSiteUrl(groupValue);
           }
           collected.push(item);
         }
@@ -437,7 +481,7 @@ export function get_pages(): I32 {
         return pagesFromPayload(entry);
       }
       if (typeof entry === "string") {
-        const payload = JSON.parse(get(entry)) as unknown;
+        const payload = JSON.parse(get(absoluteSiteUrl(entry))) as unknown;
         return pagesFromPayload(payload);
       }
       throw new ScraperError("PARSING_ERROR", "chapter entry is neither a page list nor a page list URL");
