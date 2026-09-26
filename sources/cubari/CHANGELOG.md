@@ -4,7 +4,7 @@ All notable changes to the cubari source plugin are recorded here. The plugin
 version follows semver; contract-level changes follow the ABI versioning policy
 defined in the spec repository (SPECIFICATION.md, Section 7).
 
-## [Unreleased]
+## [1.1.0] - 2026-09-26
 
 - Add a site address setting for the reading-list origin; the image proxy
   and the third-party image hosts are unaffected by the override.
