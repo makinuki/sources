@@ -5,6 +5,7 @@ import {
   fail,
   fetch,
   ok,
+  storageGet,
   type ChapterItem,
   type ErrorCode,
   type FilterSchema,
@@ -13,6 +14,7 @@ import {
   type PageItem,
   type PageResult,
   type SearchQuery,
+  type SettingSchema,
   type SourceMetadata,
 } from "@makinuki/pdk";
 import { MakiNukiHttpError } from "@makinuki/pdk";
@@ -156,7 +158,48 @@ const metadata: SourceMetadata = {
   baseUrl: WEB,
   iconUrl: "https://asurascans.com/images/logo.webp",
   nsfw: false,
+  allowedHosts: ["api.asurascans.com", "cdn.asurascans.com"],
 };
+
+const SETTINGS: SettingSchema[] = [
+  {
+    id: "base_url",
+    title: "Site address",
+    description:
+      "Custom site origin. The API origin follows as api.<host>, so a mirror without that subdomain breaks the API-backed exports. Empty means the built-in address.",
+    type: "text",
+    placeholder: WEB,
+    default: WEB,
+  },
+];
+
+// A missing key means the built-in origin; an unparsable value falls back to
+// it so a bad saved value cannot break every request.
+function webBase(): string {
+  const override = storageGet("base_url");
+  if (override && override.length > 0) {
+    try {
+      const url = new URL(override);
+      if (url.protocol === "http:" || url.protocol === "https:") return url.origin;
+    } catch {
+      // fall through to the built-in origin
+    }
+  }
+  return WEB;
+}
+
+// The JSON API lives on the api.<host> subdomain of whatever the site origin
+// is, with the same /api path as the built-in address.
+function apiBase(): string {
+  const web = webBase();
+  if (web === WEB) return API;
+  try {
+    const url = new URL(web);
+    return `${url.protocol}//api.${url.hostname}/api`;
+  } catch {
+    return API;
+  }
+}
 
 const GENRES: Array<{ name: string; slug: string }> = [
   { name: "Action", slug: "action" },
@@ -187,9 +230,11 @@ const GENRES: Array<{ name: string; slug: string }> = [
   { name: "Sci-fi", slug: "sci-fi" },
   { name: "Shoujo", slug: "shoujo" },
   { name: "Shounen", slug: "shounen" },
+  { name: "Supernatural", slug: "supernatural" },
   { name: "System", slug: "system" },
   { name: "Tower", slug: "tower" },
   { name: "Tragedy", slug: "tragedy" },
+  { name: "Transmigration", slug: "transmigration" },
   { name: "Villain", slug: "villain" },
   { name: "Violence", slug: "violence" },
 ];
@@ -278,7 +323,7 @@ function addParams(url: URL, params: Record<string, string | undefined>) {
 }
 
 function searchUrl(query: string, page: number, filters: NormalizedFilters): string {
-  const url = new URL(`${API}/series`);
+  const url = new URL(`${apiBase()}/series`);
   addParams(url, {
     offset: String(PER_PAGE_LIMIT * (page - 1)),
     limit: String(PER_PAGE_LIMIT),
@@ -306,7 +351,7 @@ function createMangaItem(data: RecordObject): MangaItem {
   const item: MangaItem = {
     id: seriesPath(slug),
     title: cleanText(asString(data["title"])) || "Untitled",
-    url: `${WEB}${asString(data["public_url"])}`,
+    url: `${webBase()}${asString(data["public_url"])}`,
   };
   const cover = asString(data["cover"]);
   if (cover.length > 0) item.coverUrl = cover;
@@ -405,16 +450,25 @@ function chapterFetchUrl(value: string): string {
   if (slug.length === 0 || typeof number !== "string" || number.length === 0) {
     throw new ScraperError("NOT_FOUND", "chapter locator must name a series and a chapter");
   }
-  return `${WEB}/comics/${slug}/chapter/${number}`;
+  return `${webBase()}/comics/${slug}/chapter/${number}`;
+}
+
+// Premium chapters are early-access entries whose pages stay unreachable
+// without an account, either flagged outright or carrying a future
+// early-access date. They are listed as locked with the chapter page as url
+// instead of being dropped.
+function isLockedChapter(data: RecordObject): boolean {
+  if (data["is_premium"] === true) return true;
+  const until = Date.parse(asString(data["early_access_until"]));
+  return !Number.isNaN(until) && until > Date.now();
 }
 
 function createChapterItem(data: RecordObject, fallbackSlug: string): ChapterItem | null {
   const number = chapterNumber(data["number"]);
   if (number === null) return null;
-  if (data["is_premium"] === true) return null;
   const numberStr = formatNumber(number);
   const seriesSlug = stableSeriesSlug(asString(data["series_slug"])) || stableSeriesSlug(fallbackSlug);
-  const chapterUrl = `${WEB}/comics/${seriesSlug}/chapter/${numberStr}`;
+  const chapterUrl = `${webBase()}/comics/${seriesSlug}/chapter/${numberStr}`;
   const item: ChapterItem = {
     id: `/series/${seriesSlug}/chapter/${numberStr}`,
     number,
@@ -422,6 +476,7 @@ function createChapterItem(data: RecordObject, fallbackSlug: string): ChapterIte
     url: chapterUrl,
     language: "en",
   };
+  if (isLockedChapter(data)) item.locked = true;
   const createdAt = asString(data["published_at"]);
   const parsed = Date.parse(createdAt);
   if (!Number.isNaN(parsed) && parsed >= 0) item.uploadedAt = parsed;
@@ -476,6 +531,11 @@ export function get_filters(): I32 {
   return 0;
 }
 
+export function get_settings(): I32 {
+  Host.outputString(JSON.stringify(SETTINGS));
+  return 0;
+}
+
 export function search(): I32 {
   const input = JSON.parse(Host.inputString()) as SearchQuery;
   const page = typeof input.page === "number" && input.page >= 1 ? input.page : 1;
@@ -505,7 +565,7 @@ export function get_details(): I32 {
       if (slug.length === 0) {
         throw new ScraperError("NOT_FOUND", "empty series locator");
       }
-      const html = requestHtml(`${WEB}/comics/${slug}`);
+      const html = requestHtml(`${webBase()}/comics/${slug}`);
       const metaIsland = findIsland(
         html,
         (props) => typeof props["title"] !== "undefined" && typeof props["description"] !== "undefined",

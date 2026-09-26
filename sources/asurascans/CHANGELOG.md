@@ -5,6 +5,16 @@ plugin version follows semver; contract-level changes follow the ABI
 versioning policy defined in the spec repository (SPECIFICATION.md,
 Section 7).
 
+## [Unreleased]
+
+- List premium and early-access chapters as locked entries instead of
+  dropping them; their pages stay unreachable without an account.
+- Add a site address setting: the override moves the site origin and the
+  API origin follows as api.<host>.
+- Declare the API and image hosts for transport allowlists.
+- Sync the genre filter list with the catalogue (add Supernatural and
+  Transmigration).
+
 ## [1.1.4] - 2026-09-12
 
 - Accept the locators a backup records: `/series/<slug>` for a series and
