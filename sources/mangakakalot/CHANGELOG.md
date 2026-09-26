@@ -4,7 +4,7 @@ All notable changes to the mangakakalot source plugin are recorded here. The plu
 version follows semver; contract-level changes follow the ABI versioning policy
 defined in the spec repository (SPECIFICATION.md, Section 7).
 
-## [Unreleased]
+## [1.1.0] - 2026-09-26
 
 - Add a site address setting for the site origin; the series, chapter,
   listing and chapter API requests follow the override.
