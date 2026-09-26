@@ -6,6 +6,7 @@ import {
   fetch,
   ok,
   parseChapterNumber,
+  storageGet,
   type ChapterItem,
   type CoverVariant,
   type ErrorCode,
@@ -15,6 +16,7 @@ import {
   type PageItem,
   type PageResult,
   type SearchQuery,
+  type SettingSchema,
   type SourceMetadata,
 } from "@makinuki/pdk";
 import { MakiNukiHttpError } from "@makinuki/pdk";
@@ -192,7 +194,67 @@ const metadata: SourceMetadata = {
   iconUrl: "https://mangadex.org/favicon.ico",
   nsfw: false,
   allowedHosts: ["mangadex.network", "uploads.mangadex.org"],
+  rateLimit: { intervalMs: 200 },
 };
+
+const SETTINGS: SettingSchema[] = [
+  {
+    id: "data_saver",
+    title: "Data saver",
+    description: "Load compressed chapter images instead of full quality.",
+    type: "checkbox",
+    default: false,
+  },
+  {
+    id: "include_unavailable",
+    title: "Show unavailable chapters",
+    description: "List chapters removed from the catalogue as locked entries.",
+    type: "checkbox",
+    default: false,
+  },
+  {
+    id: "base_url",
+    title: "API address",
+    description: "Custom API origin. Title and chapter links keep pointing at the public site; empty means the built-in address.",
+    type: "text",
+    placeholder: API,
+    default: API,
+  },
+];
+
+// Stored values follow the settings serialization: "true"/"false" for
+// checkboxes, the raw string for text. A missing key means the schema
+// default, so every setting is read per call and takes effect immediately.
+function settingEnabled(id: string, fallback: boolean): boolean {
+  const stored = storageGet(id);
+  if (stored === "true") return true;
+  if (stored === "false") return false;
+  return fallback;
+}
+
+// The override replaces the API origin only; site links stay on the public
+// origin. An empty, missing, or unparsable value means the built-in origin.
+function apiBase(): string {
+  const override = storageGet("base_url");
+  if (override && override.length > 0) {
+    try {
+      const url = new URL(override);
+      if (url.protocol === "http:" || url.protocol === "https:") return url.origin;
+    } catch {
+      // fall through to the built-in origin
+    }
+  }
+  return API;
+}
+
+function isAbsoluteHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 const SORT_OPTIONS: Array<{ label: string; value: string }> = [
   { label: "Relevance", value: "relevance_desc" },
@@ -419,7 +481,7 @@ function addParams(url: URL, params: Record<string, string | string[] | undefine
 }
 
 function searchUrl(query: string, page: number, filters: NormalizedFilters): string {
-  const url = new URL(`${API}/manga`);
+  const url = new URL(`${apiBase()}/manga`);
   addParams(url, {
     limit: String(MANGA_LIMIT),
     offset: String(MANGA_LIMIT * (page - 1)),
@@ -496,9 +558,23 @@ function chapterNumber(attrs: RecordObject): number | null {
   return parseChapterNumber(chapter);
 }
 
-function createChapterItem(data: RecordObject): ChapterItem {
+// Entries the catalogue replaced with a placeholder carry no readable
+// images: zero pages, or a single page refreshed after its readable date.
+// They are dropped; every other listed-but-unreadable entry is locked.
+function isPlaceholder(attrs: RecordObject, pageCount: number | null): boolean {
+  if (pageCount === 0) return true;
+  if (pageCount !== 1) return false;
+  const updatedAt = Date.parse(String(attrs["updatedAt"] ?? ""));
+  const readableAt = Date.parse(String(attrs["readableAt"] ?? ""));
+  return !Number.isNaN(updatedAt) && !Number.isNaN(readableAt) && updatedAt > readableAt;
+}
+
+function createChapterItem(data: RecordObject): ChapterItem | null {
   const id = String(data["id"]);
   const attrs = asRecord(data["attributes"]);
+  const externalUrl = typeof attrs["externalUrl"] === "string" ? attrs["externalUrl"] : "";
+  const pageCount = typeof attrs["pages"] === "number" ? attrs["pages"] : null;
+  if (externalUrl.length > 0 && isPlaceholder(attrs, pageCount)) return null;
   const groups = relationshipAll(data, "scanlation_group")
     .filter((group) => group["id"] !== LEGACY_NO_GROUP)
     .map((group) => asRecord(group["attributes"])["name"])
@@ -522,7 +598,15 @@ function createChapterItem(data: RecordObject): ChapterItem {
   if (!Number.isNaN(publishAt) && publishAt >= 0) item.uploadedAt = publishAt;
   const scanlator = groups.length > 0 ? groups.join(" & ") : users.length > 0 ? users.join(" & ") : undefined;
   if (scanlator) item.scanlator = scanlator;
-  item.url = `${WEB}/chapter/${id}`;
+  if (externalUrl.length > 0) {
+    item.locked = true;
+    item.url = isAbsoluteHttpUrl(externalUrl) ? externalUrl : `${WEB}/chapter/${id}`;
+  } else if (attrs["isUnavailable"] === true) {
+    item.locked = true;
+    item.url = `${WEB}/chapter/${id}`;
+  } else {
+    item.url = `${WEB}/chapter/${id}`;
+  }
   return item;
 }
 
@@ -565,11 +649,30 @@ function createMangaDetails(data: RecordObject): MangaDetails {
   const artists = names("artist");
   if (artists.length > 0) details.artists = artists;
 
-  const genres = asArray(attrs["tags"])
-    .map((tag) => asRecord(asRecord(tag)["attributes"])["name"])
-    .filter((name): name is string => typeof name === "string" && name.length > 0)
-    .filter((name, index, all) => all.indexOf(name) === index);
+  // Tags in the genre group stay in genres; every other group (theme,
+  // format, content) moves to tags. Tag names are localized maps, so the
+  // English entry wins with any other locale as fallback.
+  const tagName = (value: unknown): string => {
+    if (typeof value === "string") return value;
+    const localized = asRecord(value);
+    const english = localized["en"];
+    if (typeof english === "string" && english.length > 0) return english;
+    for (const entry of Object.values(localized)) {
+      if (typeof entry === "string" && entry.length > 0) return entry;
+    }
+    return "";
+  };
+  const genres: string[] = [];
+  const tags: string[] = [];
+  for (const tag of asArray(attrs["tags"])) {
+    const tagAttrs = asRecord(asRecord(tag)["attributes"]);
+    const name = tagName(tagAttrs["name"]);
+    if (name.length === 0) continue;
+    const target = tagAttrs["group"] === "genre" ? genres : tags;
+    if (!target.includes(name)) target.push(name);
+  }
   if (genres.length > 0) details.genres = genres;
+  if (tags.length > 0) details.tags = tags;
 
   switch (attrs["status"]) {
     case "ongoing":
@@ -591,7 +694,7 @@ function createMangaDetails(data: RecordObject): MangaDetails {
   return details;
 }
 
-function feedParams(): Record<string, string | string[]> {
+function feedParams(includeUnavailable: boolean): Record<string, string | string[]> {
   return {
     limit: String(CHAPTER_LIMIT),
     "includes[]": ["scanlation_group", "user"],
@@ -599,25 +702,30 @@ function feedParams(): Record<string, string | string[]> {
     "order[chapter]": "desc",
     includeFuturePublishAt: "0",
     includeEmptyPages: "0",
-    includeUnavailable: "0",
+    includeUnavailable: includeUnavailable ? "1" : "0",
     "contentRating[]": ["safe", "suggestive", "erotica", "pornographic"],
     "excludedGroups[]": BLOCKED_GROUPS,
   };
 }
 
 function chaptersFor(mangaId: string): ChapterItem[] {
+  const includeUnavailable = settingEnabled("include_unavailable", false);
+  const collect = (body: RecordObject): ChapterItem[] =>
+    asArray(body["data"])
+      .map((entry) => createChapterItem(asRecord(entry)))
+      .filter((chapter): chapter is ChapterItem => chapter !== null);
   const fetchPage = (offset: number): RecordObject => {
-    const url = new URL(`${API}/manga/${mangaId}/feed`);
-    addParams(url, feedParams());
+    const url = new URL(`${apiBase()}/manga/${mangaId}/feed`);
+    addParams(url, feedParams(includeUnavailable));
     url.searchParams.append("offset", String(offset));
     return requestJson(url.toString());
   };
   const first = fetchPage(0);
-  const chapters = asArray(first["data"]).map((entry) => createChapterItem(asRecord(entry)));
+  const chapters = collect(first);
   let offset = Number(first["offset"] ?? 0) + Number(first["limit"] ?? 0);
   while (first["hasNextPage"] === true) {
     const page = fetchPage(offset);
-    chapters.push(...asArray(page["data"]).map((entry) => createChapterItem(asRecord(entry))));
+    chapters.push(...collect(page));
     offset = Number(page["offset"] ?? offset) + Number(page["limit"] ?? 0);
     if (page["hasNextPage"] !== true) break;
   }
@@ -631,6 +739,11 @@ export function get_metadata(): I32 {
 
 export function get_filters(): I32 {
   Host.outputString(JSON.stringify(FILTERS));
+  return 0;
+}
+
+export function get_settings(): I32 {
+  Host.outputString(JSON.stringify(SETTINGS));
   return 0;
 }
 
@@ -664,7 +777,7 @@ export function get_details(): I32 {
       if (mangaId.length === 0) {
         throw new ScraperError("NOT_FOUND", "empty manga locator");
       }
-      const url = new URL(`${API}/manga/${mangaId}`);
+      const url = new URL(`${apiBase()}/manga/${mangaId}`);
       addParams(url, { "includes[]": ["cover_art", "author", "artist"] });
       const response = requestJson(url.toString());
       const details = createMangaDetails(asRecord(response["data"]));
@@ -683,17 +796,27 @@ export function get_pages(): I32 {
       if (chapterId.length === 0) {
         throw new ScraperError("NOT_FOUND", "empty chapter locator");
       }
-      const response = requestJson(`${API}/at-home/server/${chapterId}`);
+      const response = requestJson(`${apiBase()}/at-home/server/${chapterId}`);
       const base = response["baseUrl"];
       const chapter = asRecord(response["chapter"]);
       const hash = chapter["hash"];
-      const files = asArray(chapter["data"]);
       if (typeof base !== "string" || typeof hash !== "string" || base.length === 0 || hash.length === 0) {
         throw new ScraperError("PARSING_ERROR", "at-home response missing baseUrl or chapter hash");
       }
+      // Compressed images live under a separate path with their own file
+      // list; an empty compressed list falls back to full quality.
+      let quality = "data";
+      let files = asArray(chapter["data"]);
+      if (settingEnabled("data_saver", false)) {
+        const compressed = asArray(chapter["dataSaver"]);
+        if (compressed.length > 0) {
+          files = compressed;
+          quality = "data-saver";
+        }
+      }
       return files.map((file, index): PageItem => ({
         index,
-        url: `${base}/data/${hash}/${String(file)}`,
+        url: `${base}/${quality}/${hash}/${String(file)}`,
         isScrambled: false,
       }));
     }),

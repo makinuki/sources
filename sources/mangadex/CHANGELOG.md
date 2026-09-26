@@ -5,6 +5,18 @@ plugin version follows semver; contract-level changes follow the ABI
 versioning policy defined in the spec repository (SPECIFICATION.md,
 Section 7).
 
+## [Unreleased]
+
+- Split details tags by catalogue group: the genre group stays in genres,
+  theme, format, and content move to tags.
+- Add source settings: data saver (compressed chapter images),
+  include-unavailable (list removed chapters as locked entries), and an API
+  address override that leaves site links on the public origin.
+- Mark chapters listed but not readable as locked, pointing at the official
+  portal or the chapter page; placeholder entries with no readable images
+  are dropped.
+- Declare a 200ms request pacing hint in the source metadata.
+
 ## [1.1.1] - 2026-09-12
 
 - Accept a locator in every published form: the bare id, the `/manga/<id>`
