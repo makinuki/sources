@@ -44,7 +44,8 @@ pnpm install
 pnpm build
 ```
 
-Each source package compiles to `dist/<name>.wasm`. `pnpm typecheck` runs the
+Each source package compiles to `dist/<name>.wasm`. Pass one or more plugin
+ids to build just those, e.g. `pnpm build mangadex`. `pnpm typecheck` runs the
 TypeScript compiler over the scripts and all source packages.
 
 ## Testing

@@ -12,13 +12,25 @@ const distDir = join(root, "dist");
 const pdkPackage = require.resolve("@makinuki/pdk/package.json");
 const buildBin = join(dirname(pdkPackage), require(pdkPackage).bin["makinuki-build"]);
 
-const sources = readdirSync(sourcesDir, { withFileTypes: true })
+const available = readdirSync(sourcesDir, { withFileTypes: true })
   .filter((entry) => entry.isDirectory() && existsSync(join(sourcesDir, entry.name, "package.json")))
   .map((entry) => entry.name);
 
-if (sources.length === 0) {
+if (available.length === 0) {
   console.error("no source packages found under sources/");
   process.exit(1);
+}
+
+// With ids (pnpm build mangadex weebcentral) only those plugins compile;
+// without ids every plugin compiles.
+const requested = process.argv.slice(2);
+const sources = requested.length > 0 ? requested : available;
+if (requested.length > 0) {
+  const unknown = sources.filter((name) => !available.includes(name));
+  if (unknown.length > 0) {
+    console.error(`unknown plugin(s): ${unknown.join(", ")} (available: ${available.join(", ")})`);
+    process.exit(1);
+  }
 }
 
 for (const name of sources) {
