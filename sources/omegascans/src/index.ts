@@ -6,6 +6,7 @@ import {
   fetch,
   ok,
   parseChapterNumber,
+  storageGet,
   type ChapterItem,
   type ErrorCode,
   type FilterSchema,
@@ -14,6 +15,7 @@ import {
   type PageItem,
   type PageResult,
   type SearchQuery,
+  type SettingSchema,
   type SourceMetadata,
 } from "@makinuki/pdk";
 import { MakiNukiHttpError } from "@makinuki/pdk";
@@ -47,6 +49,45 @@ const metadata: SourceMetadata = {
   nsfw: true,
   allowedHosts: ["omegascans.org", "api.omegascans.org", "media.omegascans.org"],
 };
+
+const SETTINGS: SettingSchema[] = [
+  {
+    id: "base_url",
+    title: "Site address",
+    description: "Custom site origin. Empty means the built-in address.",
+    type: "text",
+    placeholder: WEB,
+    default: WEB,
+  },
+];
+
+// A missing key means the built-in origin; an unparsable value falls back to
+// it so a bad saved value cannot break every request.
+function webBase(): string {
+  const override = storageGet("base_url");
+  if (override && override.length > 0) {
+    try {
+      const url = new URL(override);
+      if (url.protocol === "http:" || url.protocol === "https:") return url.origin;
+    } catch {
+      // fall through to the built-in origin
+    }
+  }
+  return WEB;
+}
+
+// The JSON API lives on the api.<host> subdomain of whatever the site origin
+// is, with no path prefix.
+function apiBase(): string {
+  const web = webBase();
+  if (web === WEB) return API;
+  try {
+    const url = new URL(web);
+    return `${url.protocol}//api.${url.hostname}`;
+  } catch {
+    return API;
+  }
+}
 
 const FILTERS: FilterSchema[] = [
   {
@@ -168,7 +209,7 @@ function runExport<T>(fn: () => T): string {
 function absoluteUrl(value: string): string | undefined {
   if (value.length === 0) return undefined;
   if (value.startsWith("http://") || value.startsWith("https://")) return value;
-  return `${API}${value.startsWith("/") ? "" : "/"}${value}`;
+  return `${apiBase()}${value.startsWith("/") ? "" : "/"}${value}`;
 }
 
 // A series locator is the slug that follows the site's series prefix. Series
@@ -206,11 +247,24 @@ function descriptionOf(value: string): string {
   return cleanText(value);
 }
 
+// A chapter is early-access while it is still priced above zero and its
+// free_at instant has not passed. A paid chapter whose window has elapsed is
+// readable, so the price alone would keep a free chapter locked forever. The
+// unlock time itself is not interpreted: the host decides how to present a
+// locked entry.
+function isLockedChapter(chapter: Json): boolean {
+  const price = asNumber(chapter["price"]) ?? 0;
+  if (price <= 0) return false;
+  const freeAt = Date.parse(asString(chapter["free_at"]));
+  if (!Number.isFinite(freeAt)) return true;
+  return freeAt > Date.now();
+}
+
 function queryUrl(query: string, page: number, filters: Json): string {
   const status = asString(filters["status"]) || "All";
   const sort = asString(filters["sort"]) || "total_views";
   const order = asString(filters["order"]) || "desc";
-  const url = new URL(`${API}/query`);
+  const url = new URL(`${apiBase()}/query`);
   url.searchParams.set("query_string", query.trim());
   url.searchParams.set("status", status);
   url.searchParams.set("order", order);
@@ -228,7 +282,11 @@ function mangaFrom(value: unknown): MangaItem | null {
   const slug = asString(record["series_slug"]);
   const title = asString(record["title"]);
   if (slug.length === 0 || title.length === 0) return null;
-  const item: MangaItem = { id: slug, title, url: `${WEB}/series/${slug}` };
+  const item: MangaItem = {
+    id: slug,
+    title,
+    url: `${webBase()}/series/${slug}`,
+  };
   const cover = absoluteUrl(asString(record["thumbnail"]));
   if (cover) item.coverUrl = cover;
   return item;
@@ -241,6 +299,11 @@ export function get_metadata(): I32 {
 
 export function get_filters(): I32 {
   Host.outputString(JSON.stringify(FILTERS));
+  return 0;
+}
+
+export function get_settings(): I32 {
+  Host.outputString(JSON.stringify(SETTINGS));
   return 0;
 }
 
@@ -258,7 +321,11 @@ export function search(): I32 {
       const meta = asRecord(body["meta"]);
       const current = asNumber(meta["current_page"]) ?? page;
       const last = asNumber(meta["last_page"]) ?? page;
-      const result: PageResult<MangaItem> = { page, hasNextPage: current < last, items };
+      const result: PageResult<MangaItem> = {
+        page,
+        hasNextPage: current < last,
+        items,
+      };
       return result;
     }),
   );
@@ -273,7 +340,7 @@ export function get_details(): I32 {
       if (slug.length === 0) {
         throw new ScraperError("NOT_FOUND", "empty series locator");
       }
-      const series = getJson(`${API}/series/${slug}`);
+      const series = getJson(`${apiBase()}/series/${slug}`);
       const title = asString(series["title"]);
       if (title.length === 0) {
         throw new ScraperError("NOT_FOUND", `no series for ${slug}`);
@@ -303,7 +370,7 @@ export function get_details(): I32 {
       if (genres.length > 0) details.genres = genres;
 
       if (seriesId !== null) {
-        const chaptersUrl = `${API}/chapter/query?page=1&perPage=${CHAPTER_PAGE_SIZE}&series_id=${seriesId}`;
+        const chaptersUrl = `${apiBase()}/chapter/query?page=1&perPage=${CHAPTER_PAGE_SIZE}&series_id=${seriesId}`;
         const chapterBody = getJson(chaptersUrl);
         for (const raw of asArray(chapterBody["data"])) {
           const chapter = asRecord(raw);
@@ -319,7 +386,8 @@ export function get_details(): I32 {
           item.title = chapterTitle.length > 0 ? `${name} - ${chapterTitle}` : name;
           const uploadedAt = Date.parse(asString(chapter["created_at"]));
           if (Number.isFinite(uploadedAt)) item.uploadedAt = uploadedAt;
-          item.url = `${WEB}/series/${slug}/${chapterSlug}`;
+          item.url = `${webBase()}/series/${slug}/${chapterSlug}`;
+          if (isLockedChapter(chapter)) item.locked = true;
           details.chapters.push(item);
         }
       }
@@ -346,7 +414,7 @@ export function get_pages(): I32 {
       }
       const chapterSlug = segments[segments.length - 1];
       const seriesSlug = segments[segments.length - 2];
-      const body = getJson(`${API}/chapter/${seriesSlug}/${chapterSlug}`);
+      const body = getJson(`${apiBase()}/chapter/${seriesSlug}/${chapterSlug}`);
       const chapter = asRecord(body["chapter"]);
       const chapterData = asRecord(chapter["chapter_data"]);
       const images = asArray(chapterData["images"]);
