@@ -4,7 +4,7 @@ All notable changes to the omegascans source plugin are recorded here. The plugi
 version follows semver; contract-level changes follow the ABI versioning policy
 defined in the spec repository (SPECIFICATION.md, Section 7).
 
-## [Unreleased]
+## [1.1.0] - 2026-09-27
 
 - List early-access chapters as locked entries while their paid window is
   open, instead of listing them as readable. A chapter that was priced but
